@@ -1,3 +1,6 @@
 [submodule "mlib_devel"]
 	path = mlib_devel
 	url = https://github.com/casper-astro/mlib_devel
+[submodule "sw/adc5g"]
+	path = sw/adc5g
+	url = https://github.com/jack-h/adc_tests
