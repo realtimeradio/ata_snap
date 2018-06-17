@@ -7,5 +7,5 @@ This firmware has the following modes:
 * 10 GbE output
 * Up to 1250 MSamples/s 8-bit sampling
 * 2048 Frequency Channels (8-tap FIR + FFT architecture)
-* Full stokes products (output with 64-bit resolution)
+* Full stokes products (output with 32-bit resolution)
 * Dump rates >= 50 microseconds
