@@ -22,7 +22,7 @@ parser.add_argument('-e', dest='eth', action='store_true', default=False,
                     help ='Use this flag to switch on Ethernet transmission')
 parser.add_argument('-a', dest='acclen', type=int, default=2**18,
                     help ='Number of 2048-channel spectra to accumulate per dump')
-parser.add_argument('-f', dest='fftshift', type=int, default=0xffff,
+parser.add_argument('-f', dest='fftshift', type=int, default=0xaaaa,
                     help ='FFT shift schedule')
 
 args = parser.parse_args()
@@ -66,5 +66,9 @@ if args.mansync:
        snap.write_int("sync_arm", 1<<4)
        snap.write_int("sync_arm", 0)
        time.sleep(1)
+
+time.sleep(4)
+print "Checking for FFT overflow"
+print "Number of FFT overflows in last sync period: %d" % snap.read_int("fft_of")
 
 print "Initialization complete!"
