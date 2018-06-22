@@ -18,6 +18,10 @@ parser.add_argument('fpgfile', type=str,
                     help = '.fpgfile to program')
 parser.add_argument('-s', dest='srate', type=float, default=900.0,
                     help ='Sample rate in MHz for non-interleaved band. Used for spectrum axis scales')
+parser.add_argument('--nox', dest='nox', action='store_true', default=False,
+                    help ='Do not record X-pol data')
+parser.add_argument('--noy', dest='noy', action='store_true', default=False,
+                    help ='Do not record Y-pol data')
 parser.add_argument('-n', dest='ncaptures', type=int, default=16,
                     help ='Number of data captures (for each correlation product)')
 parser.add_argument('-r', dest='rfc', type=float, default=0.0,
@@ -102,16 +106,22 @@ print "ADC1 mean/dev: %.2f / %.2f" % (out["adc1_stats"]["mean"], out["adc1_stats
 
 out['fft_shift'] = snap.read_int('fft_shift')
 
-out['auto0'] = []
-out['auto1'] = []
-out['auto0_timestamp'] = []
-out['auto1_timestamp'] = []
-out['auto0_of_count'] = []
-out['auto1_of_count'] = []
-out['fft_of0'] = []
-out['fft_of1'] = []
+ants = []
+if not args.nox:
+    ants += '0'
+    out['auto0'] = []
+    out['auto0_timestamp'] = []
+    out['auto0_of_count'] = []
+    out['fft_of0'] = []
+if not args.noy:
+    ants += '1'
+    out['auto1'] = []
+    out['auto1_timestamp'] = []
+    out['auto1_of_count'] = []
+    out['fft_of1'] = []
+
 for i in range(args.ncaptures):
-    for ant in ['0', '1']:
+    for ant in ants:
         print "Setting snapshot select to %s (%d)" % (ant, mux_sel[ant])
         snap.write_int('vacc_ss_sel', mux_sel[ant])
         print "Grabbing data (%d of %d)" % (i+1, args.ncaptures)
