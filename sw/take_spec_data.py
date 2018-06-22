@@ -57,7 +57,7 @@ if not os.path.isdir(datadir):
     print "Chosen data directory: %s does not exist. Create it and run this script again!" % datadir
     exit()
 
-filename = os.path.join(datadir, "%d_rf%.2f_n%d_%s" % (time.time(), out['rfc'], args.ncaptures, args.comment))
+filename = os.path.join(datadir, "%d_rf%.2f_n%d_%s.pkl" % (time.time(), out['rfc'], args.ncaptures, args.comment))
 print "Output filename is %s" % filename
 
 print "Using RF center frequency of %.2f" % out['rfc']
