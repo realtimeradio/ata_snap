@@ -38,7 +38,7 @@ print "Figuring out accumulation length"
 acc_len = float(snap.read_int('timebase_sync_period') / (4096 / 4))
 print "Accumulation length is %f" % acc_len
 
-mux_sel = {'0':0, '1':1, 'cross_even':2, 'cross_odd':3}
+mux_sel = {'0':0, '1':0, 'cross':1}
 print "Setting snapshot select to %s (%d)" % (args.ant, mux_sel[args.ant])
 snap.write_int('vacc_ss_sel', mux_sel[args.ant])
 
@@ -46,6 +46,10 @@ print "Snapping data"
 x,t = snap.snapshots.vacc_ss_ss.read_raw()
 d = np.array(struct.unpack('>%dl' % (x['length']/4), x['data'])) / acc_len * 2**18.
 if args.ant in ['0', '1']:
+    if args.ant == '0':
+        d = d[0::2]
+    else:
+        d = d[1::2]
     frange = np.linspace(args.rfc - (args.srate - args.ifc), args.rfc - (args.srate - args.ifc) + args.srate/2., d.shape[0])
     fig, ax = plt.subplots(1,1)
     ax.semilogy(frange, d)
