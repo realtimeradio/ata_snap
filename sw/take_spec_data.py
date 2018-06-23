@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 import os
-from subprocess import Popen, PIPE
 import argparse
 import casperfpga
 import adc5g
@@ -9,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import struct
 import cPickle as pkl
+import ata_control
 
 parser = argparse.ArgumentParser(description='Plot ADC Histograms and Spectra',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -32,27 +32,28 @@ parser.add_argument('-c', dest='comment', type=str, default="",
                     help ='comment to be appended at the end of the filename (eg, a source name)')
 parser.add_argument('-p', dest='path', type=str, default="~/data",
                     help ='Directory in which to record data')
+parser.add_argument('-a', dest='ant', type=str, default=None,
+                    help ='ATA Antenna string (used for getting monitoring data')
 
 args = parser.parse_args()
 out = vars(args).copy()
 
 if args.rfc == 0.0:
     print "Reading Sky center frequency from the ATA control system"
-    loproc = Popen(["atagetskyfreq", "a"], stdout=PIPE, stderr=PIPE)
-    stdout, stderr = loproc.communicate()
-    out["rfc"] = float(stdout.strip())
+    out["rfc"] = ata_control.get_sky_freq()
     print "Frequency is %.1f MHz" % out["rfc"]
 
 print "Trying to get ATA status information"
 try:
-    atastat = Popen("ataasciistatus", stdout=PIPE, stderr=PIPE)
-    stdout, stderr = atastat.communicate()
+    out['ata_status'] = ata_control.get_ascii_status()
     print "Succeeded -- status will be written into the output file"
-    out['ata_status'] = stdout
 except:
     print "!!!!!!!!!!!!!!!!!!!!!!!!"
     print "!!!!!!   Failed   !!!!!!"
     print "!!!!!!!!!!!!!!!!!!!!!!!!"
+
+if args.ant is not None:
+    ata_control.get_pam_stats(args.ant)
 
 
 datadir = os.path.expanduser(args.path)
