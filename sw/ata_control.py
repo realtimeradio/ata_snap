@@ -27,7 +27,7 @@ def get_ascii_status():
     stdout, stderr = proc.communicate()
     return stdout
 
-def write_obs_to_db(source, freq, az_offset=0.0, el_offset=0.0, ants):
+def write_obs_to_db(source, freq, az_offset=0.0, el_offset=0.0, ants=["dummy"]):
     """
     Write details of an observation in to the observation database.
     """
@@ -41,7 +41,7 @@ def end_obs():
     proc = Popen(["obs2db", "stop"])
     proc.wait()
 
-def get_latest_obs()
+def get_latest_obs():
     """
     Get the latest observation ID from the obs database.
     """
@@ -100,3 +100,39 @@ def get_pam_status(ant):
     stdout, stderr = proc.communicate()
     x = stdout.split(',')
     return {'ant':x[0], 'atten_xf':float(x[1]), 'atten_xb':float(x[2]), 'atten_yf':float(x[3]), 'atten_yb':float(x[4]), 'det_x':float(x[5]), 'det_y':float(x[6])}
+
+def reserve_antennas(ants=["1f", "2a", "2b", "2e", "3l", "4g", "4l", "5c"]):
+    """
+    Set antennas `ants` (which should be a list of strings, eg ["1f", "2a"])
+    to antgroup bfa.
+    """
+    proc = Popen(["antreserve", "none", "bfa"] + ants, stdout=PIPE, stderr=PIPE)
+    stdout, stderr = proc.communicate()
+    lines = stdout.split('\n')
+    for line in lines:
+        cols = line.split()
+        if (len(cols) > 0) and (cols[0]  == "bfa"):
+            bfa = cols[1:]
+    for ant in ants:
+        if ant not in bfa:
+            print nonegroup
+            print ants
+            raise RuntimeError("Failed to move antenna %s to antgroup bfa" % ant)
+
+def release_antennas(ants=["1f", "2a", "2b", "2e", "3l", "4g", "4l", "5c"]):
+    """
+    Set antennas `ants` (which should be a list of strings, eg ["1f", "2a"])
+    to antgroup none.
+    """
+    proc = Popen(["antreserve", "bfa", "none"] + ants, stdout=PIPE, stderr=PIPE)
+    stdout, stderr = proc.communicate()
+    lines = stdout.split('\n')
+    for line in lines:
+        cols = line.split()
+        if (len(cols) > 0) and (cols[0]  == "none"):
+            nonegroup = cols[1:]
+    for ant in ants:
+        if ant not in nonegroup:
+            print nonegroup
+            print ants
+            raise RuntimeError("Failed to move antenna %s to antgroup none" % ant)
