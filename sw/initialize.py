@@ -89,6 +89,7 @@ if args.eth:
     print "Releasing 10GbE reset"
     snap.write_int("tge_rst", 0)
     snap.write_int("tge_ctr_rst", 0)
+    snap.write_int("tge_en", 1)
 
 if args.mansync:
    print "  Issuing software sync (you probably only want to do this if you don't have a PPS connected"
