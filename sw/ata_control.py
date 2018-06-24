@@ -145,3 +145,27 @@ def release_antennas(ants=["1f", "2a", "2b", "2e", "3l", "4g", "4l", "5c"]):
             print nonegroup
             print ants
             raise RuntimeError("Failed to move antenna %s to antgroup none" % ant)
+
+def get_ra_dec(source, deg=True):
+    """
+    Get the J2000 RA / DEC of `source`. Return in decimal degrees (DEC) and hours (RA)
+    by default, unless `deg`=False, in which case return in sexagesimal.
+    """
+    proc = Popen(["atacheck", source], stdout=PIPE, stderr=PIPE)
+    stdout, stderr = proc.communicate()
+    for line in stdout.split("\n"):
+        if "Found %s" % source in line:
+            cols = line.split()
+            ra  = float(cols[-1].split(',')[-2])
+            dec = float(cols[-1].split(',')[-1])
+    if deg:
+        return ra, dec
+    else:
+        ram = (ra % 1) * 60
+        ras = (ram % 1) * 60
+        ra_sg = "%d:%d:%.4f" % (int(ra), int(ram), ras)
+        decm = (dec % 1) * 60
+        decs = (decm % 1) * 60
+        dec_sg = "%d:%d:%.4f" % (int(dec), int(decm), decs)
+        return ra_sg, dec_sg
+
