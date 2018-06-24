@@ -61,3 +61,19 @@ def set_atten(switch, val):
         return
     else:
         raise RuntimeError("Set attenuation 'sudo atten %.2f %d' failed!" % (val, switch))
+
+def set_pam_atten(ant, pol, val):
+    """
+    Set the attenuation of antenna `ant`, polarization `pol` to `val` dB
+    """
+    proc = Popen(["ssh", "obs@tumulus", "atasetpams", ant, "-%s"%pol, "%f"%val])
+    proc.wait()
+
+def get_pam_status(ant):
+    """
+    Get the PAM attenuation settings and power detector readings for antenna `ant`
+    """
+    proc = Popen(["getdetpams", ant],  stdout=PIPE, stderr=PIPE)
+    stdout, stderr = proc.communicate()
+    x = stdout.split(',')
+    return {'ant':x[0], 'atten_xf':float(x[1]), 'atten_xb':float(x[2]), 'atten_yf':float(x[3]), 'atten_yb':float(x[4]), 'det_x':float(x[5]), 'det_y':float(x[6])}
