@@ -2,11 +2,19 @@ import socket
 import numpy as np
 import time
 import sys
+import argparse
+
+parser = argparse.ArgumentParser(description='Start a process to write 10GbE SNAP data to disk',
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('filename', type=str,
+                    help = 'filename to write to (timestamp will be appended')
+parser.add_argument('inttime', type=float,
+                    help = 'Number of seconds to record for')
 
 PORT = 10000
 IP = "10.10.10.131"
 PACKETS_PER_SPECTRA = 4
-PRINT_PACKETS = 1000
+PRINT_PACKETS = 4000
 N_CHANNELS = 2048
 N_STOKES_PER_PACKET = 4
 BYTES_PER_WORD = 4
@@ -18,7 +26,8 @@ print "Bytes per packet: %d" % bytes_per_packet
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((IP, PORT))
 
-fh = open("%s_%d.raw" % (sys.argv[1], time.time()), "w")
+starttime = time.time()
+fh = open("%s_%d.raw" % (sys.filename, starttime), "w")
 
 def unpack(pkt):
     header = np.fromstring(pkt[0:8], dtype=">L")
@@ -52,15 +61,19 @@ try:
             print "Received packet %d (spectra %d) (last %d spectra took %.1f seconds)" % (pkt_cnt, n_spectra, PRINT_PACKETS / PACKETS_PER_SPECTRA, tock-tick)
             tick = tock
         fh.write(I)
+        if time.time() > (starttime + args.inttime):
+            break
 except KeyboardInterrupt:
-    # Deal with the case of closing file
-    # When we're mid way through a spectra
-    straggling_packets = pkt_cnt % PACKETS_PER_SPECTRA
-    for i in range(straggling_packets):
-        fh.write(np.zeros(N_CHANNELS / PACKETS_PER_SPECTRA, dtype=np.float32).tostring())
-    print ""
-    print "Closing %s" % fh.name
-    print "Recorded %d spectra" % (pkt_cnt / PACKETS_PER_SPECTRA)
-    print "Dropped %d packets" % missing_packets_count
-    print "Wrote zeros for %d straggling packets to end on a complete spectra" % straggling_packets
-    fh.close()
+    break
+
+# Deal with the case of closing file
+# When we're mid way through a spectra
+straggling_packets = pkt_cnt % PACKETS_PER_SPECTRA
+for i in range(straggling_packets):
+    fh.write(np.zeros(N_CHANNELS / PACKETS_PER_SPECTRA, dtype=np.float32).tostring())
+print ""
+print "Closing %s" % fh.name
+print "Recorded %d spectra" % (pkt_cnt / PACKETS_PER_SPECTRA)
+print "Dropped %d packets" % missing_packets_count
+print "Wrote zeros for %d straggling packets to end on a complete spectra" % straggling_packets
+fh.close()
