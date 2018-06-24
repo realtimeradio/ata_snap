@@ -166,6 +166,6 @@ def get_ra_dec(source, deg=True):
         ra_sg = "%d:%d:%.4f" % (int(ra), int(ram), ras)
         decm = (dec % 1) * 60
         decs = (decm % 1) * 60
-        dec_sg = "%d:%d:%.4f" % (int(dec), int(decm), decs)
+        dec_sg = "%+d:%d:%.4f" % (int(dec), int(decm), decs)
         return ra_sg, dec_sg
 
