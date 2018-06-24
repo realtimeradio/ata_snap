@@ -18,10 +18,6 @@ parser.add_argument('fpgfile', type=str,
                     help = '.fpgfile to program')
 parser.add_argument('-s', dest='srate', type=float, default=900.0,
                     help ='Sample rate in MHz for non-interleaved band. Used for spectrum axis scales')
-parser.add_argument('--nox', dest='nox', action='store_true', default=False,
-                    help ='Do not record X-pol data')
-parser.add_argument('--noy', dest='noy', action='store_true', default=False,
-                    help ='Do not record Y-pol data')
 parser.add_argument('-n', dest='ncaptures', type=int, default=16,
                     help ='Number of data captures (for each correlation product)')
 parser.add_argument('-r', dest='rfc', type=float, default=0.0,
@@ -53,7 +49,7 @@ except:
     print "!!!!!!!!!!!!!!!!!!!!!!!!"
 
 if args.ant is not None:
-    ata_control.get_pam_stats(args.ant)
+    ata_control.get_pam_status(args.ant)
 
 
 datadir = os.path.expanduser(args.path)
@@ -84,7 +80,7 @@ out['fpga_clk'] = fpga_clk
 print "Clock estimate is %.1f" % fpga_clk
 assert np.abs((fpga_clk*4. / args.srate) - 1) < 0.01
 
-mux_sel = {'0':0, '1':1, 'cross_even':2, 'cross_odd':3}
+mux_sel = {'auto':0, 'cross':1}
 
 print "Grabbing ADC statistics to write to file"
 adc0 = []
@@ -106,20 +102,21 @@ print "ADC0 mean/dev: %.2f / %.2f" % (out["adc0_stats"]["mean"], out["adc0_stats
 print "ADC1 mean/dev: %.2f / %.2f" % (out["adc1_stats"]["mean"], out["adc1_stats"]["dev"])
 
 out['fft_shift'] = snap.read_int('fft_shift')
+if args.ant is not None:
+    try:
+        out['pam_stats'] = ata_control.get_pam_status(args.ant)
+    except:
+        pass
 
-ants = []
-if not args.nox:
-    ants += '0'
-    out['auto0'] = []
-    out['auto0_timestamp'] = []
-    out['auto0_of_count'] = []
-    out['fft_of0'] = []
-if not args.noy:
-    ants += '1'
-    out['auto1'] = []
-    out['auto1_timestamp'] = []
-    out['auto1_of_count'] = []
-    out['fft_of1'] = []
+ants = ['auto']
+out['auto0'] = []
+out['auto0_timestamp'] = []
+out['auto0_of_count'] = []
+out['fft_of0'] = []
+out['auto1'] = []
+out['auto1_timestamp'] = []
+out['auto1_of_count'] = []
+out['fft_of1'] = []
 
 for i in range(args.ncaptures):
     for ant in ants:
@@ -127,13 +124,17 @@ for i in range(args.ncaptures):
         snap.write_int('vacc_ss_sel', mux_sel[ant])
         print "Grabbing data (%d of %d)" % (i+1, args.ncaptures)
         x,t = snap.snapshots.vacc_ss_ss.read_raw()
-        d = np.array(struct.unpack('>%dl' % (x['length']/4), x['data'])) / acc_len * 2**18.
+        d = np.array(struct.unpack('>%dl' % (x['length']/4), x['data'])) / acc_len
         frange = np.linspace(out['rfc'] - (args.srate - args.ifc), out['rfc'] - (args.srate - args.ifc) + args.srate/2., d.shape[0])
         out['frange'] = frange
-        out['auto%s' % ant] += [d]
-        out['auto%s_timestamp' % ant] += [t]
-        out['auto%s_of_count' % ant] += [snap.read_int('power_vacc%s_of_count' % ant)]
-        out['fft_of%s' % ant] += [snap.read_int('fft_of')]
+        out['auto0'] += [d[0::2]]
+        out['auto0_timestamp'] += [t]
+        out['auto0_of_count'] += [snap.read_int('power_vacc0_of_count')]
+        out['fft_of0'] += [snap.read_int('fft_of')]
+        out['auto1'] += [d[1::2]]
+        out['auto1_timestamp'] += [t]
+        out['auto1_of_count'] += [snap.read_int('power_vacc1_of_count')]
+        out['fft_of1'] += [snap.read_int('fft_of')]
 
 print "Dumping data to %s" % filename
 pkl.dump(out, open(filename, 'w'))
