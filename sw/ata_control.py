@@ -8,6 +8,9 @@ setup.
 """
 
 from subprocess import Popen, PIPE
+import socket
+RF_SWITCH_HOST = "nsg-work1"
+ATTEN_HOST = "nsg-work1"
 
 def get_sky_freq():
     """
@@ -65,7 +68,10 @@ def set_rf_switch(switch, sel):
     Set RF switch `switch` (0..1) to connect the COM port
     to port `sel` (1..8)
     """
-    proc = Popen(["sudo", "rfswitch", "%d" % sel, "%d" % switch], stdout=PIPE, stderr=PIPE)
+    if socket.gethostname == RF_SWITCH_HOST:
+        proc = Popen(["sudo", "rfswitch", "%d" % sel, "%d" % switch], stdout=PIPE, stderr=PIPE)
+    else:
+        proc = Popen(["ssh", "sonata@%s" % RF_SWITCH_HOST, "sudo", "rfswitch", "%d" % sel, "%d" % switch], stdout=PIPE, stderr=PIPE)
     stdout, stderr = proc.communicate()
     if stdout.startswith("OK"):
         return
@@ -78,7 +84,10 @@ def set_atten(switch, val):
     to `val` dB.
     Allowable values are 0.0 to 31.75
     """
-    proc = Popen(["sudo", "atten", "%.2f" % val, "%d" % switch],  stdout=PIPE, stderr=PIPE)
+    if socket.gethostname == ATTEN_HOST:
+        proc = Popen(["sudo", "atten", "%.2f" % val, "%d" % switch],  stdout=PIPE, stderr=PIPE)
+    else:
+        proc = Popen(["ssh", "sonata@%s" % ATTEN_HOST, "sudo", "atten", "%.2f" % val, "%d" % switch],  stdout=PIPE, stderr=PIPE)
     stdout, stderr = proc.communicate()
     if stderr.startswith("OK"):
         return
