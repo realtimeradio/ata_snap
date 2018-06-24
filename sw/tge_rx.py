@@ -11,6 +11,8 @@ parser.add_argument('filename', type=str,
 parser.add_argument('inttime', type=float,
                     help = 'Number of seconds to record for')
 
+args = parser.parse_args()
+
 PORT = 10000
 IP = "10.10.10.131"
 PACKETS_PER_SPECTRA = 4
@@ -27,7 +29,7 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((IP, PORT))
 
 starttime = time.time()
-fh = open("%s_%d.raw" % (sys.filename, starttime), "w")
+fh = open("%s_%d.raw" % (args.filename, starttime), "w")
 
 def unpack(pkt):
     header = np.fromstring(pkt[0:8], dtype=">L")
@@ -50,7 +52,8 @@ try:
                 missing_packets = h - last_h - 1
                 missing_packets_count += missing_packets
                 print "%d PACKETS LOST! (running total: %d)" % (missing_packets, missing_packets_count)
-                fh.write('\x00' * (bytes_per_packet - HEADER_BYTES) * missing_packets)
+                padding = np.zeros(missing_packets * N_CHANNELS / PACKETS_PER_SPECTRA, dtype=np.float32).tostring()
+                fh.write(padding)
                 pkt_cnt += missing_packets
         last_h = h
         I = (np.array(xx, dtype=np.float32) + np.array(yy, dtype=np.float32)).tostring()
@@ -64,7 +67,7 @@ try:
         if time.time() > (starttime + args.inttime):
             break
 except KeyboardInterrupt:
-    break
+    pass
 
 # Deal with the case of closing file
 # When we're mid way through a spectra
