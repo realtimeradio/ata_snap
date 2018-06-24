@@ -27,13 +27,36 @@ def get_ascii_status():
     stdout, stderr = proc.communicate()
     return stdout
 
-def point(source, freq, az_offset=0.0, el_offset=0.0):
+def write_obs_to_db(source, freq, az_offset=0.0, el_offset=0.0, ants):
+    """
+    Write details of an observation in to the observation database.
+    """
+    proc = Popen(["obs2db", ",".join(ants), "%f" % freq, source, "%f" % az_offset, "%f" % el_offset])
+    proc.wait()
+
+def end_obs():
+    """
+    Write the current time as the end of the latest observation in the obs database.
+    """
+    proc = Popen(["obs2db", "stop"])
+    proc.wait()
+
+def get_latest_obs()
+    """
+    Get the latest observation ID from the obs database.
+    """
+    proc = Popen(["obsgetid"], stdout=PIPE, stderr=PIPE)
+    stdout, stderr = proc.communicate()
+    return int(stdout)
+
+def point(source, freq, az_offset=0.0, el_offset=0.0, ants=['dummy'], writetodb=True):
     """
     Point the ATA at `source`, with an offset
     from the source's position of `az_offset` degrees
     in azimuth and `el_offset` degrees in elevation.
     Tune to a center sky frequency of `freq` MHz
     """
+
     proc = Popen(["pointshift", source, "%f" % freq, "%f" % az_offset, "%f" % el_offset])
     proc.wait()
 
