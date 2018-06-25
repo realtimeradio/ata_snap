@@ -23,7 +23,7 @@ parser.add_argument('-e', dest='eth', action='store_true', default=False,
                     help ='Use this flag to switch on Ethernet transmission')
 parser.add_argument('-a', dest='acclen', type=int, default=2**18,
                     help ='Number of 2048-channel spectra to accumulate per dump')
-parser.add_argument('-f', dest='fftshift', type=int, default=0xffaa,
+parser.add_argument('-f', dest='fftshift', type=int, default=0xfffa,
                     help ='FFT shift schedule')
 parser.add_argument('--destip', dest='destip', type=str, default="10.10.10.10",
                     help ='Destination IP address to which spectra should be sent')
