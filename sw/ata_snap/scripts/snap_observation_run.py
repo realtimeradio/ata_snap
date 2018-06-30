@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 import os
 import sys
 from ata_snap import ata_control
