@@ -4,7 +4,7 @@ import time
 import sys
 import os
 import argparse
-import ata_control
+from ata_snap import ata_control
 from subprocess import Popen
 
 def unpack(pkt):

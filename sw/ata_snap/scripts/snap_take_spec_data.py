@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import struct
 import cPickle as pkl
-import ata_control
+from ata_snap import ata_control
 
 parser = argparse.ArgumentParser(description='Plot ADC Histograms and Spectra',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
