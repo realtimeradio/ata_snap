@@ -78,6 +78,17 @@ def set_rf_switch(switch, sel):
     else:
         raise RuntimeError("Set switch 'sudo rfswitch %d %d' failed!" % (sel, switch))
 
+def rf_switch_ant(ant, pol):
+    """
+    Select antenna `ant`, polarization `pol` on the appropriate switch.
+    """
+    proc = Popen(["rfswitchant", ant, pol], stdout=PIPE, stderr=PIPE)
+    stdout, stderr = proc.communicate()
+    if "Not found" in stdout:
+        raise RuntimeError("RF switch input %s%s not found!" % (ant, pol))
+    else:
+        return
+
 def set_atten(switch, val):
     """
     Set attenuation of switch `switch` (0..1)
