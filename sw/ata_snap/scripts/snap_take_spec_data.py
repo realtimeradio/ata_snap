@@ -30,6 +30,8 @@ parser.add_argument('-p', dest='path', type=str, default="~/data",
                     help ='Directory in which to record data')
 parser.add_argument('-a', dest='ant', type=str, default=None,
                     help ='ATA Antenna string (used for getting monitoring data')
+parser.add_argument('-t', dest='target_rms', type=float, default=None,
+        help ='Target RMS to achieve by tweaking USB attenuators. Default: Do not tune')
 
 args = parser.parse_args()
 out = vars(args).copy()
@@ -81,6 +83,55 @@ print "Clock estimate is %.1f" % fpga_clk
 assert np.abs((fpga_clk*4. / args.srate) - 1) < 0.01
 
 mux_sel = {'auto':0, 'cross':1}
+
+if args.target_rms is not None:
+    print "Trying to tune power levels to RMS: %.2f" % args.target_rms
+    max_attempts = 5
+    num_snaps = 5
+    atteni = 0
+    attenq = 0
+    try:
+        for attempt in range(max_attempts):
+            ata_control.set_atten_by_ant(args.ant + "x", atteni)
+            ata_control.set_atten_by_ant(args.ant + "y", attenq)
+            # Store attenuation values used
+            out['attenx'] = atteni
+            out['atteny'] = attenq
+            chani = []
+            chanq = []
+            for i in range(num_snaps):
+                all_chan_data = adc5g.get_snapshot(snap, 'ss_adc')
+                chani += [all_chan_data[0::2][0::2]]
+                chanq += [all_chan_data[1::2][0::2]]
+            chani = np.array(chani)
+            chanq = np.array(chanq)
+
+            print "Channel I ADC mean/std-dev: %.2f / %.2f" % (chani.mean(), chani.std())
+            print "Channel Q ADC mean/std-dev: %.2f / %.2f" % (chanq.mean(), chanq.std())
+        
+            delta_atteni = 20*np.log10(chani.std() / args.target_rms)
+            delta_attenq = 20*np.log10(chanq.std() / args.target_rms)
+        
+            if (delta_atteni < 1) and (delta_attenq < 1):
+                print "Tuning complete"
+                break
+            else:
+                # Attenuator has 0.25dB precision
+                atteni = int(4 * (atteni + delta_atteni)) / 4.0
+                attenq = int(4 * (attenq + delta_attenq)) / 4.0
+                if atteni > 30:
+                    atteni = 30
+                if attenq > 30:
+                    attenq = 30
+                print "New X-attenuation: %.3f" % atteni
+                print "New Y-attenuation: %.3f" % attenq
+    except:
+        # For some reason the Attenuation setting routine failed.
+        # Use -1 attenuation values to indicate this so that data files
+        # can be flagged.
+        print "Attenuator tuning failed!"
+        out['attenx'] = -1
+        out['atteny'] = -1
 
 print "Grabbing ADC statistics to write to file"
 adc0 = []
