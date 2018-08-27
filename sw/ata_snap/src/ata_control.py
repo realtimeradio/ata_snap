@@ -68,9 +68,11 @@ def set_rf_switch(switch, sel):
     Set RF switch `switch` (0..1) to connect the COM port
     to port `sel` (1..8)
     """
-    if socket.gethostname == RF_SWITCH_HOST:
+    if socket.gethostname() == RF_SWITCH_HOST:
+        print("sudo rfswitch %d %d\n" % (sel, switch))
         proc = Popen(["sudo", "rfswitch", "%d" % sel, "%d" % switch], stdout=PIPE, stderr=PIPE)
     else:
+        print("ssh sonata@%s sudo rfswitch %d %d\n" % (RF_SWITCH_HOST, sel, switch))
         proc = Popen(["ssh", "sonata@%s" % RF_SWITCH_HOST, "sudo", "rfswitch", "%d" % sel, "%d" % switch], stdout=PIPE, stderr=PIPE)
     stdout, stderr = proc.communicate()
     if stdout.startswith("OK"):
@@ -89,13 +91,32 @@ def rf_switch_ant(ant, pol):
     else:
         return
 
+def set_atten_by_ant(ant, val):
+    """
+    Set attenuation of antenna or ant-pol `ant`
+    to `val` dB.
+    Allowable values are 0.0 to 31.75
+    """
+    if socket.gethostname() == ATTEN_HOST:
+        proc = Popen(["atten", "%.2f" % val, "%s" % ant],  stdout=PIPE, stderr=PIPE)
+    else:
+        proc = Popen(["ssh", "sonata@%s" % ATTEN_HOST, "sudo", "atten", "%.2f" % val, "%s" % ant],  stdout=PIPE, stderr=PIPE)
+    stdout, stderr = proc.communicate()
+    if stderr.startswith("OK"):
+        return
+    else:
+        raise RuntimeError("Set attenuation 'sudo atten %.2f %s' failed!" % (val, ant))
+
 def set_atten(switch, val):
     """
     Set attenuation of switch `switch` (0..1)
     to `val` dB.
     Allowable values are 0.0 to 31.75
+    It appears that this function will no longer work --
+    attenuation should be specified by antenna (not switch number)
+    using the `set_atten_ant` method
     """
-    if socket.gethostname == ATTEN_HOST:
+    if socket.gethostname() == ATTEN_HOST:
         proc = Popen(["sudo", "atten", "%.2f" % val, "%d" % switch],  stdout=PIPE, stderr=PIPE)
     else:
         proc = Popen(["ssh", "sonata@%s" % ATTEN_HOST, "sudo", "atten", "%.2f" % val, "%d" % switch],  stdout=PIPE, stderr=PIPE)
