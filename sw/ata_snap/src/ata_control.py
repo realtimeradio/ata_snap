@@ -100,7 +100,7 @@ def set_atten_by_ant(ant, val):
     if socket.gethostname() == ATTEN_HOST:
         proc = Popen(["atten", "%.2f" % val, "%s" % ant],  stdout=PIPE, stderr=PIPE)
     else:
-        proc = Popen(["ssh", "sonata@%s" % ATTEN_HOST, "sudo", "atten", "%.2f" % val, "%s" % ant],  stdout=PIPE, stderr=PIPE)
+        proc = Popen(["ssh", "sonata@%s" % ATTEN_HOST, "atten", "%.2f" % val, "%s" % ant],  stdout=PIPE, stderr=PIPE)
     stdout, stderr = proc.communicate()
     if stderr.startswith("OK"):
         return
@@ -119,7 +119,7 @@ def set_atten(switch, val):
     if socket.gethostname() == ATTEN_HOST:
         proc = Popen(["sudo", "atten", "%.2f" % val, "%d" % switch],  stdout=PIPE, stderr=PIPE)
     else:
-        proc = Popen(["ssh", "sonata@%s" % ATTEN_HOST, "sudo", "atten", "%.2f" % val, "%d" % switch],  stdout=PIPE, stderr=PIPE)
+        proc = Popen(["ssh", "sonata@%s" % ATTEN_HOST, "atten", "%.2f" % val, "%d" % switch],  stdout=PIPE, stderr=PIPE)
     stdout, stderr = proc.communicate()
     if stderr.startswith("OK"):
         return
