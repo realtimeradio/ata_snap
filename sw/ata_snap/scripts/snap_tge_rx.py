@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import socket
+import struct
 import numpy as np
 import time
 import sys
@@ -9,10 +10,10 @@ from ata_snap import ata_control
 from subprocess import Popen
 
 def unpack(pkt):
-    header = np.fromstring(pkt[0:8], dtype=">L")
-    d = np.fromstring(pkt[8:], dtype=">i")
-    xx = d[2::4]
-    yy = d[3::4]
+    header = struct.unpack(">Q", pkt[0:8])[0]
+    d = np.fromstring(pkt[8:], dtype=">i4")
+    xx = d[0::4]
+    yy = d[1::4]
     #xy_r = d[3::4]
     #xy_i = d[4::4]
     return header, xx, yy
@@ -81,8 +82,8 @@ try:
                 fh.write(padding)
                 pkt_cnt += missing_packets
         last_h = h
-        #I = (np.array(xx, dtype=np.float32) + np.array(yy, dtype=np.float32)).tostring()
-        I = np.array(xx, dtype=np.float32).tostring()
+        I = (np.array(xx, dtype=np.float32) + np.array(yy, dtype=np.float32)).tostring()
+        #I = np.array(xx, dtype=np.float32).tostring()
         pkt_cnt += 1
         if pkt_cnt % PRINT_PACKETS == 0:
             tock = time.time()
@@ -115,18 +116,21 @@ if args.makefb:
     fb_args = [
       "-o", fbhdr_filename,
       "-nifs", "1",
-      "-fch1", "%8f" % (args.rfc - args.srate + args.ifc),
+      "-fch1", "%8f" % (args.rfc - args.srate/2. + args.ifc),
       "-source", args.source.strip("psr").upper(),
       "-filename", fh_basename,
       "-telescope", "ATA",
       "-src_raj", ra.replace(":",""),
       "-src_dej", dec.replace(":",""),
       "-tsamp", "%.8f" % (args.acc_len * N_CHANNELS * 2 / args.srate), # outputs micrpsecs for srate in MHz
-      "-foff", "%.8f" % (args.srate / 2 / N_CHANNELS), # in MHz for srate in MHz
+      "-foff", "%.8f" % (-args.srate / 2 / N_CHANNELS), # in MHz for srate in MHz
       "-nbits", "32",
       "-nchans", "%d" % N_CHANNELS,
       "-tstart", "%.8f" % (starttime / 86400. + 40587),
     ]
+    print "Making filterbank header with arguments:"
+    print fb_args
+
     proc = Popen(["filterbank_mkheader"] + fb_args)
     proc.wait()
 
