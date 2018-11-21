@@ -44,7 +44,7 @@ snap.write_int('vacc_ss_sel', mux_sel[args.ant])
 
 print "Snapping data"
 x,t = snap.snapshots.vacc_ss_ss.read_raw()
-d = np.array(struct.unpack('>%dl' % (x['length']/4), x['data'])) / acc_len * 2**18.
+d = np.array(struct.unpack('>%dl' % (x['length']/4), x['data']))
 if args.ant in ['0', '1']:
     if args.ant == '0':
         d = d[0::2]
