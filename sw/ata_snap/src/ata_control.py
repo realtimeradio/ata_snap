@@ -80,15 +80,19 @@ def set_rf_switch(switch, sel):
     else:
         raise RuntimeError("Set switch 'sudo rfswitch %d %d' failed!" % (sel, switch))
 
-def rf_switch_ant(ant, pol):
+def rf_switch_ant(ant, pol=None):
     """
     Select antenna `ant`, polarization `pol` on the appropriate switch.
     """
-    proc = Popen(["rfswitchant", ant, pol], stdout=PIPE, stderr=PIPE)
+    if socket.gethostname() == RF_SWITCH_HOST:
+        proc = Popen(["rfswitch", ant], stdout=PIPE, stderr=PIPE)
+    else:
+        proc = Popen(["ssh", "sonata@%s" % RF_SWITCH_HOST, "rfswitch", ant], stdout=PIPE, stderr=PIPE)
     stdout, stderr = proc.communicate()
     if "Not found" in stdout:
         raise RuntimeError("RF switch input %s%s not found!" % (ant, pol))
     else:
+        print stdout
         return
 
 def set_atten_by_ant(ant, val):
