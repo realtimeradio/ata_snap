@@ -223,6 +223,9 @@ main (int argc, char **argv)
       fwrite(spec_xx, N_CHANNELS * sizeof(float), 1, fxx_p);
       fwrite(spec_yy, N_CHANNELS * sizeof(float), 1, fyy_p);
       last_spectra_written = spectra_index;
+      if (elapsed > inttime) {
+        break;
+      }
     }
 
     last_header = header;
@@ -230,9 +233,6 @@ main (int argc, char **argv)
     elapsed = (int) time(NULL) - starttime;
     if ((pkt_cnt % 1000) == 0) {
         fprintf(stdout, "Received %d packets (%d seconds elapsed)\n", pkt_cnt, elapsed);
-    }
-    if (elapsed > inttime) {
-      break;
     }
   }
   fclose(fxx_p);
