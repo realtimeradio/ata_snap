@@ -1,0 +1,3 @@
+snap_adc5g_spec/*
+!snap_adc5g_spec/outputs/*
+*.log
