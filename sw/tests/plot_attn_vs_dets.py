@@ -10,9 +10,10 @@ for ant, val in ants.iteritems():
     af = np.array(val['pamx_front'])
     at = ab + af
     dx = np.array(val['detx'])
-    pylab.plot(at, 10*np.log10(dx))
+    pylab.plot(at, 10*np.log10(dx), label=ant)
 
 pylab.xlabel("PAM attenuation setting (dB)")
 pylab.ylabel("10log10(detx reading)")
+pylab.legend()
 
 pylab.show()
