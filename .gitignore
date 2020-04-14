@@ -1,3 +1,9 @@
 snap_adc5g_spec/*
 !snap_adc5g_spec/outputs/*
+snap_adc5g_feng/*
+!snap_adc5g_feng/outputs/*
 *.log
+*.jou
+*.str
+*.Xil/
+*.slx.r*
