@@ -1,7 +1,7 @@
 snap_adc5g_spec/*
-!snap_adc5g_spec/outputs/*
+!snap_adc5g_spec/outputs/*.fpg
 snap_adc5g_feng/*
-!snap_adc5g_feng/outputs/*
+!snap_adc5g_feng/outputs/*.fpg
 *.log
 *.jou
 *.str
