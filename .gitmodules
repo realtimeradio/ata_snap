@@ -4,3 +4,6 @@
 [submodule "sw/adc5g"]
 	path = sw/adc5g
 	url = https://github.com/jack-h/adc_tests
+[submodule "sw/casperfpga"]
+	path = sw/casperfpga
+	url = https://github.com/casper-astro/casperfpga
