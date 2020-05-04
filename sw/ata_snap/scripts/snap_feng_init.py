@@ -4,6 +4,7 @@ import time
 import yaml
 import logging
 import sys
+import socket
 
 from ata_snap import ata_snap_fengine
 
@@ -73,6 +74,11 @@ feng.spec_test_vector_mode(enable=args.tvg)
 # Configure arp table
 for ip, mac in config['arp'].items():
     feng.fpga.gbes.eth_core.set_single_arp_entry(ip, mac)
+# Configure 10G IP
+ip_str = socket.gethostbyname(feng.fpga.host)
+mac = feng.fpga.gbes.eth_core.get_gbe_core_details()['mac'].mac_int
+feng.fpga.gbes.eth_core.setup(mac, ip_str, 10000, '10.10.10.10', '255.255.255.0')
+feng.fpga.gbes.eth_core.configure_core()
 
 if args.specdest is not None:
     feng.spec_set_destination(config['spectrometer_dest'])
