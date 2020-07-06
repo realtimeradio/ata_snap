@@ -160,20 +160,20 @@ class AtaSnapFengine(object):
         self.logger.info('Setting accumulation length to %d spectra' % acclen)
         self._sync_set_period(acclen * self.n_chans_f * 2 // 8) # *2 for real-FFT; /8 for ADC demux
 
-    def _assign_channel(self, in_num, out_num):
-        """
-        Reorder the channels such that the `out_num`th channel
-        out of the reorder block is channel `in_num`.
-        """
-        self.fpga.write_int('chan_reorder_chan_remap_map', in_num, word_offset=out_num)
+    #def _assign_channel(self, in_num, out_num):
+    #    """
+    #    Reorder the channels such that the `out_num`th channel
+    #    out of the reorder block is channel `in_num`.
+    #    """
+    #    self.fpga.write_int('chan_reorder_chan_remap_map', in_num, word_offset=out_num)
 
-    def _assign_channels(self, in_nums, out_num_start):
-        """
-        Reorder the channels such that the `out_num + i`th channel
-        out of the reorder block is channel `in_num` + i.
-        """
-        in_nums_str = struct.pack('>L', *in_nums)
-        self.fpga.write('chan_reorder_chan_remap_map', in_nums_str, offset=out_num_start*4)
+    #def _assign_channels(self, in_nums, out_num_start):
+    #    """
+    #    Reorder the channels such that the `out_num + i`th channel
+    #    out of the reorder block is channel `in_num` + i.
+    #    """
+    #    in_nums_str = struct.pack('>L', *in_nums)
+    #    self.fpga.write('chan_reorder_chan_remap_map', in_nums_str, offset=out_num_start*4)
 
     def fft_set_shift(self, shift):
         """
@@ -519,16 +519,16 @@ class AtaSnapFengine(object):
         """
         Reorder channels such that channel_range[i] becomes index start_index+i
         Inputs:
-            channel_range (list of ints) (Must be a multpile of 8 channels long, in contiguous
-                                          blocks of 8 channels)
-            start_index (int) (Must be a multiple of 8 channels)
+            channel_range (list of ints) (Must be a multpile of 4 channels long, in contiguous
+                                          blocks of 4 channels)
+            start_index (int) (Must be a multiple of 4 channels)
         """
-        assert len(channel_range) % 8 == 0
-        assert start_index % 8 == 0
+        assert len(channel_range) % 4 == 0
+        assert start_index % 4 == 0
         self.logger.info("Reordering channels %s to start at index %d" % (channel_range, start_index))
-        channel_range = [x//8 for x in channel_range[0::8]]
-        channel_range_str = struct.pack('>%dL' % (len(channel_range)), *channel_range)
-        start_index = start_index // 8
+        channel_range = [x//4 for x in channel_range[0::4]]
+        channel_range_str = struct.pack('>%dH' % (len(channel_range)), *channel_range)
+        start_index = start_index // 4
         # Write at offset 2*start_index, since each index is two bytes in memory
         write_offset = start_index * 2
         print(len(channel_range_str), write_offset)
