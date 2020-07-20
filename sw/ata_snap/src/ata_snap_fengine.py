@@ -2,6 +2,7 @@ import casperfpga
 import struct
 import logging
 import numpy as np
+import time
 
 def _ip_to_int(ip):
     """
@@ -106,12 +107,19 @@ class AtaSnapFengine(object):
             time.sleep(0.05)
 
     def sync_arm(self):
+        """
+        Arm the sync generators for triggering on a 
+        subsequent PPS.
+
+        Returns: sync trigger time, in UNIX format
+        """
         self.logger.info('Issuing sync arm')
         self.fpga.write_int('sync_arm', 0)
         self.fpga.write_int('sync_arm', 1)
         self.fpga.write_int('sync_arm', 0)
         sync_time = int(np.ceil(time.time())) + 2
         self.fpga.write_int('sync_sync_time', sync_time)
+        return sync_time
 
     def sync_get_adc_clk_freq(self):
         """
