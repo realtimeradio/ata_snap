@@ -481,7 +481,10 @@ class AtaSnapFengine(object):
         # Number of used slots in a row which we can follow with a dummy slot
         # This will never generate more than 1 unused slot per used slot, but this
         # is fine, if not optimal to minimize traffic burstiness
-        n_slots_req_per_spare = int(np.ceil(n_required_slots / n_spare_slots))
+        if n_spare_slots == 0:
+            n_slots_req_per_spare = n_required_slots
+        else:
+            n_slots_req_per_spare = int(np.ceil(n_required_slots / n_spare_slots))
 
         self.logger.info('Number of used consecutive used slots: %s' % n_slots_req_per_spare)
 
