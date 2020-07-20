@@ -65,7 +65,11 @@ class AtaSnapFengine(object):
            force (bool): If True, overwrite the loaded design even if it already appears to be loaded.
            init_adc (bool): If True, initialize the ADC cards after programming.
         """
-        self.fpga.transport.upload_to_ram_and_program(fpgfile, force=force)
+        # in an abuse of the casperfpga API, only the TapcpTransport has a "force" option
+        if isinstance(self.fpga.transport, casperfpga.TapcpTransport):
+            self.fpga.transport.upload_to_ram_and_program(fpgfile, force=force)
+        else:
+            self.fpga.upload_to_ram_and_program(fpgfile)
         self.fpga.get_system_information(fpgfile)
         if init_adc:
             self.adc_initialize()
