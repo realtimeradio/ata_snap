@@ -15,13 +15,16 @@ In the channelization pipeline, all coefficients are stored as 18 bit complex va
 A runtime-configurable "shift schedule" is used to optionally enact divide-by-two operations on the data path after each FFT butterfly stage to prevent data overflows. The pipeline shift schedule is user-chosen based on the observed antenna power levels at the start of an observation.
 
 ## Spectrometer Pipeline
-The Spectrometer pipeline computes the accumulated power of the upstream spectra. First, the auto- and cross-power of the pairs of inputs are computed at full precision. 18-bit voltage inputs are converted into 36-bit unsigned powers (in the autocorrelation case) or 37-bit signed complex cross-powers.
+The Spectrometer pipeline computes the accumulated power of the upstream spectra. It is designed to be used with applications which don't require access to voltages such as pulsar detection, overall system health monitoring, etc.
+
+First, the auto- and cross-power of the pairs of inputs are computed at full precision. 18-bit voltage inputs are converted into 36-bit unsigned powers (in the autocorrelation case) or 37-bit signed complex cross-powers.
 
 In the accumulation stage of the spectrometer, these powers are scaled down by a factor of 4096 using a round-to-even scheme, and then successive spectra are summed into a 32-bit signed vector accumulator.\
 Accumulation length is a runtime-controlled parameter, and data may be streamed out over 10GbE (appropriate for short <<1s accumulation period) or polled via a remote software process.
 
 
 ## Voltage Pipeline
+The voltage pipeline is designed to facilitate downstream processing such as rechannelization, interferometry, coherent dedispersion, modulation classification, etc, which require undetected voltage inputs.
 
 The voltage pipeline performs no averaging, and thus operates at lower bit precision than the spectrometer pipeline in order to fit into a limited (10Gb/s) output bandwidth. In the provided firmware, the voltage pipeline outputs 4 bit complex samples.
 
@@ -30,8 +33,3 @@ Prior to quantization to 4 bits, tuning of signal levels is possible by multiply
 Following this equalization step, each sample is quantized to 4 bit complex representation, using a round-to-even scheme. Values are saturated at a value of +/- 7, in order to maintain symmetry around zero.
 
 If operated at the maximum supported ADC sample rate of 1250 Msps, the total system bandwidth after 4-bit quantization is 20 Gb/s. In order to maintain a rate less than 10 Gb/s, only a subset of frequency channels are transmitted.
-
-
-## Test modes & Software Control
-
-The above system block diagram gives an indication of some of the runtime-configurable pipeline settings which are shown in yellow circles. As well as the settings described above, other 
