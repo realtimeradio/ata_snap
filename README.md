@@ -1,20 +1,22 @@
 # ata_snap
 This repository contains SNAP firmware and associated control software originally designed for use at the Allen Telescope Array.
 
-The current firmware model is `snap_adc5g_feng.slx`.
+The current firmware model is `snap_adc5g_feng[_rpi].slx`.
 
 It has the following features:
 
 * Dual-polarization input
-* Up to 1250 MSamples/s 8-bit sampling using CASPER's `adc5g` ADC card
+* Up to 2500 MSamples/s 8-bit sampling using CASPER's `adc5g` ADC card
 * 4096 Frequency Channels (8-tap FIR + FFT architecture)
 
 Spectrometer output mode
+
 * XX, YY, XY output products
 * Slow-speed polled output @ ~1 second time resolution
 * 10 Gb Ethernet output @ ~100 microsecond time resolution
 
 Voltage "F-Engine" mode
+
 * 4+4 bit complex channelized voltages (4096 channels over the Nyquist band)
 * 10 Gb Ethernet output (only available when not using the spectrometer 10 GbE output)
 * Output up to 2048 of 4096 channels
@@ -40,6 +42,7 @@ Voltage "F-Engine" mode
 4. From the top level of this repository, run `startsg` (if your environment file is called `startsg.local`) or `startsg <my_local_environment_file.local>`.
 
 ### Source Files
-- `snap_adc5g_feng.slx` -- Simulink firmware model
+- `snap_adc5g_feng.slx` -- Simulink firmware model supporting Microblaze 10GbE control interface
+- `snap_adc5g_feng_rpi.slx` -- Simulink firmware model supporting a Raspberry Pi (katcp / 1GbE) interface
 - sw/ata_snap -- Python control software & supporting libraries
 
