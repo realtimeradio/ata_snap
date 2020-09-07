@@ -6,7 +6,7 @@ The signal processing pipeline takes as input two data streams sampled at up to 
 
 The pipeline -- shown in high-level form below, with processing modules shown in blue and runtime settings shown in yellow circles -- creates two output data products: accumulated spectral power, and channelized voltages. One of these two outputs can be selected for output over a 10GbE link.
 
-![pipeline-image][figs/ata-snap-feng.png]
+![pipeline-image][https://github.com/realtimeradio/ata_snap/blob/voltage-capture/docs/figs/ata-snap-feng.png]
 
 ## Channelization
 Both processing pipelines share a common polyphase-filterbank channelizer, formed from an FIR filter and subsequent FFT. This channelizer takes real-valued 8-bit voltages as its inputs, and outputs 18 bit complex (i.e. 18-bit real + 18-bit imaginary) spectra with 4096 channels critically sampling the system's Nyquist band. When operated at the maximum ADC sample rate of 2500 Msps, each spectrum comprises 4096 channels each approximately 305 kHz wide.
