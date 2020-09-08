@@ -24,24 +24,30 @@ Accumulation length is a runtime-controlled parameter, and data may be streamed 
 
 ### Output Data Format
 
-The spectrometer pipeline outputs data as a UDP packet stream. Each packet comprises a payload of 32-bit signed integers, with a 64-bit header.
+The spectrometer pipeline outputs data as a UDP packet stream. Each packet comprises a payload of 32-bit signed integers, with a 64-bit header. Ie:
 
-uint64 header
-int32 data[channel, stokes]
+```
+struct packet {
+  uint64 header;
+  int32 data[n_channels, n_stokes];
+};
+```
 
-*header*
+**header**
 
 The header should be read as a network-endian 64-bit unsigned integer, with the following bit fields:
+
  - bits[7:0] : bit antenna ID
  - bits[10:8] : 3-bit channel block index
  - bits[55:11] : time index
  - bits[63:56] : 8-bit packet version. Most significant bit is always 0 for spectrometer packets
 
-*data*
+**data**
 
 The data payload in each packet is 8192 bytes.
 
-The complete payload is an array of 32-bit integers with dimensions `channel x polarization-product`, with
+The complete payload is an array of 32-bit integers with dimensions `channel x polarization-product`, with:
+
  - channel index running from 0 - 512
  - polarization-product running from 0-3 with:
    - index 0: XX product
@@ -64,22 +70,28 @@ If operated at the maximum supported ADC sample rate of 1250 Msps, the total sys
 
 The voltage pipeline outputs data as a UDP packet stream. Each packet comprises a payload of 4+4 bit complex samples, with a 64-bit header.
 
-uint64 header
-uint8 data[time, channel, polarization]
+```
+struct packet {
+  uint64 header;
+  uint8 data[n_times, n_channels, n_polarizations];
+};
+```
 
-*header*
+**header**
 
 The header should be read as a network-endian 64-bit unsigned integer, with the following bit fields:
+
 - bits [5:0] : 6 bit antenna number
 - bits [17:6] : 12 bit channel number (indicating the index of the first channel in the packet)
 - bits[55:18] : 56 bit sample number (since each packet contains 16 samples, this header entry counts in units of 16 spectra. I.e., if it is 0, the packet contains samples from spectra 0 through 15, if it is 1, the packet contains samples from spectra 1 6 through 31)
 - bits[63:56] : 8-bit version number. Most significant bit is 1 for voltage capture packets
 
-*data*
+**data**
 
 The data payload in each packet is 8192 bytes. Each byte of data should be interpretted as 4+4 bit complex values, with the most significant 4 bits representing the real part of the complex sample, and the least significant 4 bits representing the imaginary part of the complex sample.
 
 The complete payload is an array with dimensions `time x channel x polarization`, with
+
  - time index running from 0 - 15
  - chan index running from 0 - 255
  - polarization index running from 0 - 1
