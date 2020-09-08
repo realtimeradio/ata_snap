@@ -22,6 +22,32 @@ First, the auto- and cross-power of the pairs of inputs are computed at full pre
 In the accumulation stage of the spectrometer, these powers are scaled down by a factor of 4096 using a round-to-even scheme, and then successive spectra are summed into a 32-bit signed vector accumulator.\
 Accumulation length is a runtime-controlled parameter, and data may be streamed out over 10GbE (appropriate for short <<1s accumulation period) or polled via a remote software process.
 
+### Output Data Format
+
+The spectrometer pipeline outputs data as a UDP packet stream. Each packet comprises a payload of 32-bit signed integers, with a 64-bit header.
+
+uint64 header
+int32 data[channel, stokes]
+
+*header*
+
+The header should be read as a network-endian 64-bit unsigned integer, with the following bit fields:
+ - bits[7:0] : bit antenna ID
+ - bits[10:8] : 3-bit channel block index
+ - bits[55:11] : time index
+ - bits[63:56] : 8-bit packet version. Most significant bit is always 0 for spectrometer packets
+
+*data*
+
+The data payload in each packet is 8192 bytes.
+
+The complete payload is an array of 32-bit integers with dimensions `channel x polarization-product`, with
+ - channel index running from 0 - 512
+ - polarization-product running from 0-3 with:
+   - index 0: XX product
+   - index 1: YY product
+   - index 2: real(XY*) product
+   - index 3: imag(XY*) product
 
 ## Voltage Pipeline
 The voltage pipeline is designed to facilitate downstream processing such as rechannelization, interferometry, coherent dedispersion, modulation classification, etc, which require undetected voltage inputs.
@@ -33,3 +59,27 @@ Prior to quantization to 4 bits, tuning of signal levels is possible by multiply
 Following this equalization step, each sample is quantized to 4 bit complex representation, using a round-to-even scheme. Values are saturated at a value of +/- 7, in order to maintain symmetry around zero.
 
 If operated at the maximum supported ADC sample rate of 1250 Msps, the total system bandwidth after 4-bit quantization is 20 Gb/s. In order to maintain a rate less than 10 Gb/s, only a subset of frequency channels are transmitted.
+
+### Output Data Format
+
+The voltage pipeline outputs data as a UDP packet stream. Each packet comprises a payload of 4+4 bit complex samples, with a 64-bit header.
+
+uint64 header
+uint8 data[time, channel, polarization]
+
+*header*
+
+The header should be read as a network-endian 64-bit unsigned integer, with the following bit fields:
+- bits [5:0] : 6 bit antenna number
+- bits [17:6] : 12 bit channel number (indicating the index of the first channel in the packet)
+- bits[55:18] : 56 bit sample number (since each packet contains 16 samples, this header entry counts in units of 16 spectra. I.e., if it is 0, the packet contains samples from spectra 0 through 15, if it is 1, the packet contains samples from spectra 1 6 through 31)
+- bits[63:56] : 8-bit version number. Most significant bit is 1 for voltage capture packets
+
+*data*
+
+The data payload in each packet is 8192 bytes. Each byte of data should be interpretted as 4+4 bit complex values, with the most significant 4 bits representing the real part of the complex sample, and the least significant 4 bits representing the imaginary part of the complex sample.
+
+The complete payload is an array with dimensions `time x channel x polarization`, with
+ - time index running from 0 - 15
+ - chan index running from 0 - 255
+ - polarization index running from 0 - 1
