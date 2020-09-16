@@ -1,7 +1,11 @@
 snap_adc5g_spec/*
 !snap_adc5g_spec/outputs/*.fpg
+snap_adc5g_spec_rpi/*
+!snap_adc5g_spec_rpi/outputs/*.fpg
 snap_adc5g_feng/*
 !snap_adc5g_feng/outputs/*.fpg
+snap_adc5g_feng_rpi/*
+!snap_adc5g_feng_rpi/outputs/*.fpg
 *.log
 *.jou
 *.str
