@@ -1,0 +1,36 @@
+fftshift: 0xfffa
+acclen: 300000
+# Coeffs should be a single number, or an array
+# of 4096 numbers to set one coefficient per channel.
+coeffs: 100
+# UDP port for 10GbE data
+dest_port: 10000
+spectrometer_dest: 10.11.10.174
+# Define which channels should be output
+# over 10GbE in voltage dump mode.
+voltage_output:
+  start_chan: 0
+  n_chans: 1024
+  # Channels will be spread over the following
+  # destinations so that the first n_chans // len(dests)
+  # go to the first IP address, etc.
+  dests:
+      - 10.11.10.173
+# All relevant IP/MAC mapping should be manually
+# specified here
+arp:
+  10.11.10.100: 0x0033fb421701
+  10.11.10.101: 0x002034eb1701
+  10.11.10.102: 0x00234de01512
+  10.11.10.161: 0x0023f2f11701
+  10.11.10.162: 0x0011e6d31701
+  10.11.10.163: 0x000977091701
+  10.11.10.164: 0x0020873f1701
+  10.11.10.165: 0x0006ab3f1701
+  10.11.10.166: 0x0010b0671701
+  10.11.10.167: 0x0013a83b1701
+  10.11.10.168: 0x00232e9d1701
+  10.11.10.169: 0x00156bd71701
+  10.11.10.170: 0x000701701701
+  10.11.10.173: 0xaeecc7b400ff
+  10.11.10.235: 0xe41d2d073fe0
