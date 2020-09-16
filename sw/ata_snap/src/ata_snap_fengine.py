@@ -2,6 +2,7 @@ import casperfpga
 import struct
 import logging
 import numpy as np
+import time
 
 def _ip_to_int(ip):
     """
@@ -64,7 +65,11 @@ class AtaSnapFengine(object):
            force (bool): If True, overwrite the loaded design even if it already appears to be loaded.
            init_adc (bool): If True, initialize the ADC cards after programming.
         """
-        self.fpga.transport.upload_to_ram_and_program(fpgfile, force=force)
+        # in an abuse of the casperfpga API, only the TapcpTransport has a "force" option
+        if isinstance(self.fpga.transport, casperfpga.TapcpTransport):
+            self.fpga.transport.upload_to_ram_and_program(fpgfile, force=force)
+        else:
+            self.fpga.upload_to_ram_and_program(fpgfile)
         self.fpga.get_system_information(fpgfile)
         if init_adc:
             self.adc_initialize()
@@ -106,12 +111,19 @@ class AtaSnapFengine(object):
             time.sleep(0.05)
 
     def sync_arm(self):
+        """
+        Arm the sync generators for triggering on a 
+        subsequent PPS.
+
+        Returns: sync trigger time, in UNIX format
+        """
         self.logger.info('Issuing sync arm')
         self.fpga.write_int('sync_arm', 0)
         self.fpga.write_int('sync_arm', 1)
         self.fpga.write_int('sync_arm', 0)
         sync_time = int(np.ceil(time.time())) + 2
         self.fpga.write_int('sync_sync_time', sync_time)
+        return sync_time
 
     def sync_get_adc_clk_freq(self):
         """
@@ -469,7 +481,10 @@ class AtaSnapFengine(object):
         # Number of used slots in a row which we can follow with a dummy slot
         # This will never generate more than 1 unused slot per used slot, but this
         # is fine, if not optimal to minimize traffic burstiness
-        n_slots_req_per_spare = int(np.ceil(n_required_slots / n_spare_slots))
+        if n_spare_slots == 0:
+            n_slots_req_per_spare = n_required_slots
+        else:
+            n_slots_req_per_spare = int(np.ceil(n_required_slots / n_spare_slots))
 
         self.logger.info('Number of used consecutive used slots: %s' % n_slots_req_per_spare)
 
