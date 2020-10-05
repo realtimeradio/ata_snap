@@ -1,4 +1,4 @@
-.. |version| replace:: 1.0.2
+.. |version| replace:: 1.1.0
 
 ATA SNAP F-Engine Firmware User Manual
 ======================================
@@ -47,6 +47,16 @@ This Document
 This document describes the hardware configuration required by the F-Engine system, the runtime configuration proceedures, and the software control functionality made available to the user.
 It also provides a description of the output data formats of each of the two data processing modes.
 
+Nomenclature
+------------
+
+Data Types
+~~~~~~~~~~
+
+Throughout this document, data types are labelled in diagrams using the nomenclature :math:`X.Y\mathrm{b}`. Unless otherwise stated, this indicates an :math:`X`-bit signed, fixed-point number, with :math:`Y` bits below the binary point.
+
+Where this document indicates an :math:`N`-bit complex number, this implies a :math:`2N`-bit value  with an :math:`N`-bit real part in its most-significant bits, and an :math:`N`-bit imaginary part in its least-significant bits.
+
 .. _sec-data-format:
 
 Output Data Formats
@@ -57,7 +67,7 @@ Output Data Formats
 Spectrometer Packets
 ~~~~~~~~~~~~~~~~~~~~
 
-In versions 1.0.x  of the SNAP firmware, each spectrometer dump is a 64 kiB data set, comprising 4096 channels and 4 32-bit words per channel.
+In versions 1.1.x  of the SNAP firmware, each spectrometer dump is a 64 kiB data set, comprising 4096 channels and 4 32-bit floating point (IEEE 754 single precision: 1-bit sign, 8-bit exponent, 23-bit fraction)  words per channel.
 Each data dump is transmitted from the SNAP in 8 UDP packets, each with an 512 channel (8 kiB) payload and 8 byte header:
 
 .. code-block:: C
@@ -67,7 +77,7 @@ Each data dump is transmitted from the SNAP in 8 UDP packets, each with an 512 c
 
   struct spectrometer_packet {
     uint64 header;
-    int32 data[N_c, N_p]
+    float data[N_c, N_p] // IEEE 754 single precision float
   };
 
 The header should be read as a network-endian 64-bit unsigned integer, with the following bit fields:
@@ -77,12 +87,12 @@ The header should be read as a network-endian 64-bit unsigned integer, with the 
   - bits[63:56] (i.e. ``(header >> 56) & 0xff``) : 8-bit firmware version
 
 Headers fields should be interpretted as follows:
-  - *Antenna ID*: A runtime configurable ID which uniquely associates a packet with a particular SNAP board and antenna. See ``TODO``
+  - *Antenna ID*: A runtime configurable ID which uniquely associates a packet with a particular SNAP board and antenna.
   - *Channel block index*: Indicates which channels are in this packet. A value of :math:`b` indicates that this packet contains channels :math:`512b` to :math:`512(b+1)`.
-  - *Accumulation ID*: A counter that represents the integration number. I.e., the first integration will have an ID 0, the second and ID 1, etc. These IDs should be referred to GPS time through knowledge of the system sampling rate and accumulation length parameters, and the system was last synchronized (see ``TODO``).
+  - *Accumulation ID*: A counter that represents the integration number. I.e., the first integration will have an ID 0, the second and ID 1, etc. These IDs should be referred to GPS time through knowledge of the system sampling rate and accumulation length parameters, and the system was last synchronized (see `sec-timing`).
   - *Firmware version*: Bit [7] is always 0 for *Spectrometer* packets. The remaining bits contain a compile-time defined firmware version, represented in the form bit[6].bits[5:3].bits[2:0]. This document refers to firmware version |version|.
 
-The data payload in each packet should be interpretted as an 8192 byte array of network-endian 32-bit integers with dimensions ``channel x polarization-product``.
+The data payload in each packet should be interpretted as an 8192 byte array of 32 bit floats with dimensions ``channel x polarization-product``.
 The ``channel`` index runs from 0 to 511.
 The ``polarization-product`` index runs from 0-3 with:
 
@@ -103,9 +113,9 @@ Each packet contains a data payload of 8192 bytes, made up of 16 time samples fo
   #define N_c 256
   #define N_p 2
 
-  struct spectrometer_packet {
+  struct voltage_packet {
     uint64 header;
-    int32 data[N_t, N_c, N_p]
+    complex4 data[N_t, N_c, N_p] // 4-bit real + 4-bit imaginary
   };
 
 The header should be read as a network-endian 64-bit unsigned integer, with the following bit fields:
@@ -115,15 +125,15 @@ The header should be read as a network-endian 64-bit unsigned integer, with the 
   - bits[63:56] (i.e. ``(header >> 56) & 0xff``) : 8-bit Firmware version
 
 Headers fields should be interpretted as follows:
-  - *Antenna ID*: A runtime configurable ID which uniquely associates a packet with a particular SNAP board and antenna. See ``TODO``
+  - *Antenna ID*: A runtime configurable ID which uniquely associates a packet with a particular SNAP board and antenna.
   - *Channel number*: The index of the first channel present in this packet. For example, a channel number :math:`c` implies the packet contains channels :math:`c` to :math:`c+255`.
-  - *Sample number*: The index of the first time sample present in this packet. For example, a sample number :math:`s` implies the packet contains samples :math:`s` to :math:`s+15`. Sample number can be referred to GPS time through knowledge of the system sampling rate and accumulation length parameters, and the system was last synchronized (see ``TODO``).
+  - *Sample number*: The index of the first time sample present in this packet. For example, a sample number :math:`s` implies the packet contains samples :math:`s` to :math:`s+15`. Sample number can be referred to GPS time through knowledge of the system sampling rate and accumulation length parameters, and the system was last synchronized. See `sec-timing`.
   - *Firmware version*: Bit [7] is always 1 for *Voltage* packets. The remaining bits contain a compile-time defined firmware version, represented in the form bit[6].bits[5:3].bits[2:0]. This document refers to firmware version |version|.
 
 Note that at full sample rate (2500 Msps) spectra are generated every 3.2 microseconds, thus a 38-bit spectra counter will roll over every ~10 days.
-Downstream software should take account of this if the system is expected to run for longer than this duration without a new synchronization trigger (see ``TODO``)
+Downstream software should take account of this if the system is expected to run for longer than this duration without a new synchronization trigger (see `sec-timing`)
 
-The data payload in each packet is 8192 bytes. Each bytes of data should be interpretted as a 4-bit complex number (i.e. 4-bit real, 4-bit imaginary) with the most significant 4 bits of each byte representing the real part of the complex sample, and the least significant 4 bits representing the imaginary part of the complex sample.
+The data payload in each packet is 8192 bytes. Each byte of data should be interpretted as a 4-bit complex number (i.e. 4-bit real, 4-bit imaginary) with the most significant 4 bits of each byte representing the real part of the complex sample in signed 2's complement format, and the least significant 4 bits representing the imaginary part of the complex sample in 2's complement format.
 
 The complete payload is an array with dimensions ``time x channel x polarization``, with
 
@@ -267,54 +277,61 @@ Relevant Software Methods
   - ``adc_get_samples``: Get a snapshot of raw ADC samples
   - ``adc_get_stats``: Get the mean, mean power, and number of clipping events from the last 512k samples
 
+.. _sec-timing:
+
+Timing
+^^^^^^
+
+The Timing module allows multiple SNAP boards to be synchronized, and locks data timestamps to a known UTC origin.
+Mulitple board synchronization relies on each SNAP board being fed a time-aligned, distributed pulse, with an edge rate of << 1ms.
+Alignment of timestamps to UTC requires that the SNAP pulses have a positive edge aligned with a UTC second.
+
+Typically, both of the above requirements can be met by using a syncronization signal which is a distributed GPS-locked Pulse-Per-Second (PPS).
+
+Quality of board synchronization is determined by the nature of the PPS distribution system. For commercial PPS distribution equipment, using length-matched cables, synchronization will be within :math:`<10` ADC samples.
+
+The synchronization process is as follows:
+
+1. Wait for a PPS to pass
+2. Arm all SNAP boards in the system to trigger on the next PPS edge
+3. Reset on-board spectra counters on the next PPS edge
+
+Relevant Software Methods
+`````````````````````````
+
+  - ``sync_wait_for_pps``: Wait for an external PPS pulse to pass
+  - ``sync_arm``: Arm the firmware such that the next PPS results in a reset of local counters
+  - ``sync_get_last_sync_time``: Return the time that the firmware was last synchronized to a PPS pulse
+  - ``sync_get_ext_count``: Return the number of PPS pulses returned since the FPGA was last programmed
+  - ``sync_get_fpga_clk_pps_interval``: Return the number of FPGA clock ticks between the last two PPS pulses
+  - ``sync_get_adc_clk_freq``: Infer the ADC clock rate from the number of FPGA clock ticks between PPS pulses
+
+
 Filter Bank
 ^^^^^^^^^^^
 
 The Filter Bank (aka Polyphase Filter Bank, PFB [pfb]_) separates the X- and Y-polarization input broad-band data streams into 4096 frequency channels, starting at DC, with centers separated by :math:`\frac{f_s}{4096}`.
 These baseband frequencies, from DC to :math:`\frac{f_s}{2}` represent different sky-frequencies when the input analog signals are mixed with LOs upstream of the digital system.
 
-As shown in :numref:`fig-ata-snap-feng`, the PFB receives real-valued broad-band data with 8-bits resolution, and after processing delivers complex-valued spectra with 18-bit resolution.
+As shown in :numref:`fig-ata-snap-feng`, the PFB receives real-valued broad-band data with 8-bits resolution, and after processing delivers complex-valued spectra with 25-bit resolution.
 
-Internally, the FFT processes data at a precision of 25 bits, allowing for signifcant growth in the required dynamic range of the narrow-band signals.
-The internal data path is shown, with relevant data bit width, in :numref:`fig-pfb-bitwidth`.
+Internally, the FFT data path is shown in :numref:`fig-pfb-bitwidth`.
 
 .. figure:: _static/figs/pfb-bitwidth.png
     :align: center
     :name: fig-pfb-bitwidth
     
-    A pictorial representation of the PFB internal datapath, showing internal data precision. Coefficients in the FIR and FFT modules are stored with 18 bits resolution. Overall signal amplitude growth is controlled with a runtime-applied *shift schedule*, and monitoring allows for overflows at two stages of the PFB pipeline to be detected.
+    A pictorial representation of the PFB internal datapath, showing internal data precision. Coefficients in the FIR and FFT modules are stored with 18 bits resolution. Overall signal amplitude growth in the FFT is controlled with a *shift schedule*, which is hardcoded to enforce :math:`2^{-6}` scaling. This is sufficient to guarantee against FFT overflow for any input signal.
 
-Critical for effective operation of the PFB is the application of an appropriate FFT *shift schedule*.
-The shift schedule controls, for each butterfly stage of the FFT, whether data are allowed to grow, or should be divided by two to prevent overflows.
 In general, an FFT with :math:`2^N` points has :math:`N` butterfly stages, and dynamic range should grow by :math:`N` bits to guarantee against overflow.
-Allowing such large bitgrowth is resource-intensive, so scaling down data to prevent overflow can be a useful alternative.
 
 The SNAP firmware processes 18-bit inputs with 25-bits of precision, allowing for 7 bits of growth.
-A further scaling down of :math:`2^6` using the shift schedule is sufficient to guarantee against overflow.
-It is therefore recommended that the shift schedule is set to scale by at least this much.
-
-After the FFT, the data path is scaled back to 18 bits to facilitate cheaper downstream processing.
-This scaling is implemented by saturating the input signal if it exceeds the range permitted by an 18-bit representation.
-
-Software routines are provided to count the number of overflows both within the FFT module, and in the post-FFT saturation logic.
-
-Note that saturation events in the FFT should be absolutely avoided (and preferably the shift schedule should be chosen so as to make them impossible) since these corrupt entire FFT frames.
-Saturation events in the downstream casting of data from 25 to 18 bits corrupt only the channel which has saturated.
-In most cases, this is likely to be RFI.
-
-The suggested configuration of the PFB is therefore as follows:
-
-  #. Set the FFT shift schedule to scale by :math:`2^6` (see ``fft_set_shift``).
-  #. Over a long period of integration, verify that no overflows within the FFT are occuring (see ``fft_of_detect``).
-  #. Check for overflows in the downstream data-saturation logic (see ``fft_cast_of_detect``).
-  #. Check power spectra to verify that power-levels are not saturating anywhere near the level of signals-of-interest (see ``spec_read``)
+A further scaling down of :math:`2^6` using the FFT shift schedule is sufficient to guarantee against overflow.
 
 Relevant Software Methods
 `````````````````````````
 
-  - ``fft_set_shift``: Set the FFT shift schedule
   - ``fft_of_detect``: Count overflows in the FFT module
-  - ``fft_cast_of_detect``: Count overflows downstream of the FFT
   - ``spec_read``: Read an accumulated spectrum
   - ``spec_plot``: Plot an accumulated spectrum
 
@@ -328,16 +345,13 @@ The former are real-valued, while the latter is complex.
 
 All are computed by:
 
-  #. Multiplying 18-bit voltage inputs to generate 36-bit powers
-  #. Rounding (to even) these 36-bit powers to 25 bits, throwing away the least-significant bits
-  #. Integrating these powers into 32-bit accumulators, with a runtime-configurable integration length
+  #. Multiplying 25-bit voltage inputs to generate 50-bit powers
+  #. Integrating these powers into 64-bit accumulators, with a runtime-configurable integration length
+  #. Casting data to 32-bit floating point, and outputting over 10GbE. 64-bit integer values are available via a low speed 1GbE interface.
 
-The nature of the bit handling in this implementation has the following "features":
-
-  #. Discarding the least-significant bits of the signal powers prior to accumulation potentially makes the system vulnerable to degraded performance if the inputs are very low-power. Avoiding excessive downshifting in the PFB can minimize the impact of this effect. Verifying that data output from the accumulators is consistent with reasonable input signal levels (i.e. after dividing out the accumulation length, the resulting value should be :math:`>>1`) can verify this is not a problem.
-  #. The accumulators can only guarantee that 128 spectra can be integrated without overflow. This is only ~400 microseconds of data!
-
-In practice, neither of these issues is likely to cause problems, except in the case of very long (>>1 second) integrations.
+The nature of the bit handling in this implementation means that the accumulators can only guarantee against overflow for integrations of fewer than :math:`2^{14}` spectra. This amounts to just 53 ms of data.
+In practice, except in cases of high-power narrowband inputs, integrations of substantially longer without overflow are possible.
+In the event of overflow, data are saturated at :math:`\pm 2^{63}`.
 
 Spectra can be read from the power accumulator via software -- appropriate for monitoring, debugging, and low time-resolution (~1s) observations -- or can be streamed out of the SNAP's 10 GbE interface.
 The latter interface supports integration lengths of down to 150 micro-seconds, and emits data in the format descibed in :ref:`sec-spec-format`.
@@ -369,24 +383,32 @@ Equalization
 
 In the voltage pipeline, post-PFB data are quantized to 4 bits prior to being transmitted over 10 GbE.
 
-Reducing data to such low bit-precision requires carefully managing input signal levels.
+This substantial reduction of bit precision requires carefully managing input signal levels.
 As such, prior to equalization, spectra are multiplied by a runtime-programmable amplitude scaling factor.
 The scaling factors can be uniquely specified per polarization and per frequency channel, and should be used to ensure that data in each frequency channel exhibit an appropriate RMS.
 
-Equalization coefficients can be computed by inferring the power levels out of the PFB using the SNAP's inbuilt spectrometer, and computing the necessary scaling required to target an optimal level [quant]_.
-
-Otherwise, coefficients may be computed by a downstream receiver which has direct access to the 4-bit levels.
-
-TODO: Provide a method to do this, given the scalings, it's non trivial.
+Equalization coefficients can be computed either by inferring power levels from Spectrometer Mode data, or by directly interrogating the post-quantization power-levels using the dedicated 4-bit spectrometer. In this latter case, dividing out the accumulation length will yield the mean power in each 4-bit signal after scaling. Scaling coefficients can then be modified as required in order to target an optimal level (for example, that given by [quant]_).
 
 Relevant Software Methods
 `````````````````````````
 
   - ``eq_load_coeffs``: Load a set of equalization coefficients
-  - TODO: Add method to auto-set.
+  - ``quant_spec_read``: Get power spectra from post-quantization data
 
 Voltage Channel Selection
 ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Voltage Mode output data path requires that only 2048 of the 4096 generated frequency channels are transmitted over 10 GbE.
+This down-selection takes place following 4-bit quantization, and is typically configured at initialization time using an appropriate configuration file (see `sec-config-file`).
+
+The chosen 2048 channels are split into four groups of 512 channels, each of which may be directed to a different IP address.
+
+Channel selection should satisfy the following rules:
+
+  1. Each destination IP address should receive a start channel which is an integer multiple of 8.
+  2. If channel :math:`n` is sent to IP address :math:`I`, this IP address should also receive channels :math:`n+1,n+2,n+3,n+4,n+5,n+6,n+7`.
+
+Beyond these requirements, channels selected for transmission need not be contiguous and may also be duplicated. I.e. a block of 512 channels may be sent to each of 4 IP addresses.
 
 Relevant Software Methods
 `````````````````````````
@@ -407,8 +429,6 @@ Relevant Software Methods
   - ``eth_enable_output``: Turn on 10GbE transmission
   - ``eth_print_counters``: Print Ethernet packet statistics
 
-Spectral Power Accumulator
-~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Relevant Software Methods
 `````````````````````````
@@ -501,18 +521,18 @@ This script has the following use template:
                          F-engine data (default: False)
     -a ACCLEN            Number of spectra to accumulate per spectrometer dump.
                          Default: get from config file (default: None)
-    -f FFTSHIFT          FFT shift schedule. Default: get from configuration
-                         file (default: None)
     --specdest SPECDEST  Destination IP address to which spectra should be sent.
                          Default: get from config file (default: None)
 
+
+.. _sec-config-file:
 
 Configuration File
 ~~~~~~~~~~~~~~~~~~
 
 .. code-block:: yaml
 
-  fftshift: 0xfffa
+  # Accumulation length, in spectra.
   acclen: 300000
   # Coeffs should be a single number, or an array
   # of 4096 numbers to set one coefficient per channel.

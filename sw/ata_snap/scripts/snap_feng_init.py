@@ -26,8 +26,6 @@ parser.add_argument('--eth_volt', dest='eth_volt', action='store_true', default=
                     help ='Use this flag to switch on Ethernet transmission of F-engine data')
 parser.add_argument('-a', dest='acclen', type=int, default=None,
                     help ='Number of spectra to accumulate per spectrometer dump. Default: get from config file')
-parser.add_argument('-f', dest='fftshift', type=int, default=None,
-                    help ='FFT shift schedule. Default: get from configuration file')
 parser.add_argument('--specdest', dest='specdest', type=str, default=None,
         help ='Destination IP address to which spectra should be sent. Default: get from config file')
 
@@ -46,7 +44,6 @@ assert not (args.eth_spec and args.eth_volt), "Can't use both --eth_spec and --e
 with open(args.configfile, 'r') as fh:
     config = yaml.load(fh, Loader=yaml.SafeLoader)
 
-config['fftshift'] = args.fftshift or config['fftshift']
 config['acclen'] = args.acclen or config['acclen']
 config['spectrometer_dest'] = args.specdest or config['spectrometer_dest']
 
@@ -60,7 +57,6 @@ feng.program(args.fpgfile)
 feng.eth_enable_output(False)
 
 feng.set_accumulation_length(config['acclen'])
-feng.fft_set_shift(config['fftshift'])
 
 # Use the same coefficients for both polarizations
 feng.eq_load_coeffs(0, config['coeffs'])

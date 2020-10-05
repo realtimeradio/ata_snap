@@ -296,36 +296,36 @@ class AtaSnapFengine(object):
     #    in_nums_str = struct.pack('>L', *in_nums)
     #    self.fpga.write('chan_reorder_chan_remap_map', in_nums_str, offset=out_num_start*4)
 
-    def fft_set_shift(self, shift=0b0011111100000):
-        """
-        Set the FFT shift pattern.
-        The firmware interprets the shift value as a binary value, with
-        each bit controlling the shift (divide-by-two) at one stage of
-        the FFT. The number of stages in the FFT is equal to log2(FFT_SIZE).
+    #def fft_set_shift(self, shift=0b0011111100000):
+    #    """
+    #    Set the FFT shift pattern.
+    #    The firmware interprets the shift value as a binary value, with
+    #    each bit controlling the shift (divide-by-two) at one stage of
+    #    the FFT. The number of stages in the FFT is equal to log2(FFT_SIZE).
 
-        Example usage:
-            `fft_set_shift(2**13-1)` : Shift down every stage of an 8k-point FFT
-            `fft_set_shift(0b11)` : Shift down on the first two stages of the FFT only
-            `fft_set_shift(0)` : Don't shift at any stage of the FFT
-        
-        The necessity for shifting depends on the input power levels into the FFT,
-        the number of bits in the FFT data path, and the nature of the input signal.
-        Sinusoidal input signals grow by a factor of 2 at each FFT stage, and therefore
-        might need to be shifted every stage.
-        Noise-like signals grow by a factor of sqrt(2) at each FFT stage, and therefore
-        might only needed to be shifted every other stage.
-        Setting the FFT shift should be done in concert with monitoring the FFT overflow
-        state with `fft_of_detect`.
+    #    Example usage:
+    #        `fft_set_shift(2**13-1)` : Shift down every stage of an 8k-point FFT
+    #        `fft_set_shift(0b11)` : Shift down on the first two stages of the FFT only
+    #        `fft_set_shift(0)` : Don't shift at any stage of the FFT
+    #    
+    #    The necessity for shifting depends on the input power levels into the FFT,
+    #    the number of bits in the FFT data path, and the nature of the input signal.
+    #    Sinusoidal input signals grow by a factor of 2 at each FFT stage, and therefore
+    #    might need to be shifted every stage.
+    #    Noise-like signals grow by a factor of sqrt(2) at each FFT stage, and therefore
+    #    might only needed to be shifted every other stage.
+    #    Setting the FFT shift should be done in concert with monitoring the FFT overflow
+    #    state with `fft_of_detect`.
 
-        NB: in firmware versions >=1.02 the FFT input data are padded by 7 bits. For an
-        8192 point transform, this means 6 bits of shifting is sufficient to avoid
-        overflow.
+    #    NB: in firmware versions >=1.02 the FFT input data are padded by 7 bits. For an
+    #    8192 point transform, this means 6 bits of shifting is sufficient to avoid
+    #    overflow.
 
-        :param shift: Shift schedule
-        :type shift: int
-        """
-        self.logger.info('Setting FFT shift to 0x%x' % shift)
-        self.fpga.write_int('pfb_fft_shift', shift)
+    #    :param shift: Shift schedule
+    #    :type shift: int
+    #    """
+    #    self.logger.info('Setting FFT shift to 0x%x' % shift)
+    #    self.fpga.write_int('pfb_fft_shift', shift)
 
     def fft_of_detect(self):
         """
@@ -358,6 +358,55 @@ class AtaSnapFengine(object):
         """
         return bool(self.fpga.read_uint('pfb_cast_overflow'))
 
+    def quant_spec_read(self, mode="auto"):
+        """
+        Read a single accumulated spectrum of the 4-bit quantized data/
+
+        :param mode: "auto" to read an autocorrelation for each of the X and Y pols.
+            "cross" to read a cross-correlation of Xconj(Y).
+        :type mode: str:
+        :raises AssertionError: if mode is not "auto" or "cross"
+        :return: If mode="auto": A tuple of two numpy arrays, xx, yy, containing
+            a power spectrum from the X and Y polarizations.
+            If mode="cross": A complex numpy array containing the cross-power
+            spectrum of Xconj(Y).
+        :rtype: numpy.array
+        """
+        assert mode in ["auto", "cross"]
+        if mode == "auto":
+            self.fpga.write_int("corr_vacc_ss_sel", 0)
+        else:
+            self.fpga.write_int("corr_vacc_ss_sel", 1)
+
+        self.fpga.snapshots.corr_vacc_ss_ss0.arm() # This arms all RAMs
+        d0, t0 = self.fpga.snapshots.corr_vacc_ss_ss0.read_raw(arm=False)
+        d1, t1 = self.fpga.snapshots.corr_vacc_ss_ss1.read_raw(arm=False)
+        d0i = struct.unpack(">%di" % (d0["length"] // 4), d0["data"])
+        d1i = struct.unpack(">%di" % (d1["length"] // 4), d1["data"])
+        if mode == "auto":
+            xx_0  = d0i[0::2]
+            xx_1  = d1i[0::2]
+            yy_0  = d0i[1::2]
+            yy_1  = d1i[1::2]
+            xx = np.zeros(self.n_chans_f)
+            yy = np.zeros(self.n_chans_f)
+            for i in range(self.n_chans_f // 2):
+                xx[2*i]   = xx_0[i]
+                xx[2*i+1] = xx_1[i]
+                yy[2*i]   = yy_0[i]
+                yy[2*i+1] = yy_1[i]
+            return xx, yy
+        elif mode == "cross":
+            xy_0_r = d0i[0::2]
+            xy_0_i = d0i[1::2]
+            xy_1_r = d1i[0::2]
+            xy_1_i = d1i[1::2]
+            xy = np.zeros(self.n_chans_f, dtype=np.complex)
+            for i in range(self.n_chans_f // 2):
+                xy[2*i]   = xy_0_r[i] + 1j*xy_0_i[i]
+                xy[2*i+1] = xy_1_r[i] + 1j*xy_1_i[i]
+            return xy
+
     def eq_load_coeffs(self, pol, coeffs):
         """
         Load coefficients with which to multiply data prior to 4-bit quantization.
@@ -380,7 +429,7 @@ class AtaSnapFengine(object):
         :raises AssertionError: If an array of coefficients is provided with an invalid size,
             if any coefficients are negative, or if pol is a non-allowed value
         """
-        COEFF_BITS = 16 # Bits per coefficient
+        COEFF_BITS = 32 # Bits per coefficient
         COEFF_BP = 5 # binary point position
 
         assert pol in [0, 1]
@@ -488,33 +537,51 @@ class AtaSnapFengine(object):
         else:
             self.fpga.write_int("corr_vacc_ss_sel", 1)
 
-        self.fpga.snapshots.corr_vacc_ss_ss0.arm() # This arms both RAMs
+        self.fpga.snapshots.corr_vacc_ss_ss0.arm() # This arms all RAMs
         d0, t0 = self.fpga.snapshots.corr_vacc_ss_ss0.read_raw(arm=False)
         d1, t1 = self.fpga.snapshots.corr_vacc_ss_ss1.read_raw(arm=False)
-        d0i = struct.unpack(">%dl" % (d0["length"] // 4), d0["data"])
-        d1i = struct.unpack(">%dl" % (d1["length"] // 4), d1["data"])
+        d2, t2 = self.fpga.snapshots.corr_vacc_ss_ss2.read_raw(arm=False)
+        d3, t3 = self.fpga.snapshots.corr_vacc_ss_ss3.read_raw(arm=False)
+        d0i = struct.unpack(">%dq" % (d0["length"] // 8), d0["data"])
+        d1i = struct.unpack(">%dq" % (d1["length"] // 8), d1["data"])
+        d2i = struct.unpack(">%dq" % (d2["length"] // 8), d2["data"])
+        d3i = struct.unpack(">%dq" % (d3["length"] // 8), d3["data"])
         if mode == "auto":
-            xx_even = d0i[0::2]
-            xx_odd  = d1i[0::2]
-            yy_even = d0i[1::2]
-            yy_odd  = d1i[1::2]
+            xx_0  = d0i[0::2]
+            xx_1  = d1i[0::2]
+            xx_2  = d2i[0::2]
+            xx_3  = d3i[0::2]
+            yy_0  = d0i[1::2]
+            yy_1  = d1i[1::2]
+            yy_2  = d2i[1::2]
+            yy_3  = d3i[1::2]
             xx = np.zeros(self.n_chans_f)
             yy = np.zeros(self.n_chans_f)
-            for i in range(self.n_chans_f // 2):
-                xx[2*i]   = xx_even[i]
-                xx[2*i+1] = xx_odd[i]
-                yy[2*i]   = yy_even[i]
-                yy[2*i+1] = yy_odd[i]
+            for i in range(self.n_chans_f // 4):
+                xx[4*i]   = xx_0[i]
+                xx[4*i+1] = xx_1[i]
+                xx[4*i+2] = xx_2[i]
+                xx[4*i+3] = xx_3[i]
+                yy[4*i]   = yy_0[i]
+                yy[4*i+1] = yy_1[i]
+                yy[4*i+2] = yy_2[i]
+                yy[4*i+3] = yy_3[i]
             return xx, yy
         elif mode == "cross":
-            xy_even_r = d0i[0::2]
-            xy_even_i = d0i[1::2]
-            xy_odd_r  = d1i[0::2]
-            xy_odd_i  = d1i[1::2]
+            xy_0_r = d0i[0::2]
+            xy_0_i = d0i[1::2]
+            xy_1_r = d1i[0::2]
+            xy_1_i = d1i[1::2]
+            xy_2_r = d2i[0::2]
+            xy_2_i = d2i[1::2]
+            xy_3_r = d3i[0::2]
+            xy_3_i = d3i[1::2]
             xy = np.zeros(self.n_chans_f, dtype=np.complex)
-            for i in range(self.n_chans_f // 2):
-                xy[2*i]   = xy_even_r[i] + 1j*xy_even_i[i]
-                xy[2*i+1] = xy_odd_r[i] + 1j*xy_odd_i[i]
+            for i in range(self.n_chans_f // 4):
+                xy[4*i]   = xy_0_r[i] + 1j*xy_0_i[i]
+                xy[4*i+1] = xy_1_r[i] + 1j*xy_1_i[i]
+                xy[4*i+2] = xy_2_r[i] + 1j*xy_2_i[i]
+                xy[4*i+3] = xy_3_r[i] + 1j*xy_3_i[i]
             return xy
 
     def spec_plot(self, mode="auto"):
