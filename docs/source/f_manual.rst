@@ -401,7 +401,7 @@ Voltage Channel Selection
 The Voltage Mode output data path requires that only 2048 of the 4096 generated frequency channels are transmitted over 10 GbE.
 This down-selection takes place following 4-bit quantization, and is typically configured at initialization time using an appropriate configuration file (see `sec-config-file`).
 
-The chosen 2048 channels are split into four groups of 512 channels, each of which may be directed to a different IP address.
+The chosen 2048 channels are split into eight groups of 256 channels, each of which may be directed to a different IP address.
 
 Channel selection should satisfy the following rules:
 
