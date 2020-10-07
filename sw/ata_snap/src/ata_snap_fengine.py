@@ -73,14 +73,14 @@ class AtaSnapFengine(object):
         Returns True if the fpga appears to be programmed
         with a valid F-engine design. Returns False otherwise.
         The test this method uses is searching for the register
-        named `fversion` in the running firmware, so it can
+        named `version` in the running firmware, so it can
         easily be fooled.
         :return: True if programmed, False otherwise
         :rtype: bool
         """
-        if 'fversion' in self.fpga.listdev():
-            version = self.fpga.read_uint('fversion')
-            self.logger.info("FPGA F-Engine version (based on 'fversion' register) is %d" % version)
+        if 'version' in self.fpga.listdev():
+            version = self.fpga.read_uint('version')
+            self.logger.info("FPGA F-Engine version (based on 'version' register) is %d" % version)
             return True
         return False
 
