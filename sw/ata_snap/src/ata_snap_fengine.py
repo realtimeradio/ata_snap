@@ -127,9 +127,18 @@ class AtaSnapFengine(object):
         """
         Get a block of samples from both ADC inputs, captured simultaneously.
 
+        This method requires that the currently programmed fpg file is known.
+        This can be achieved either by programming the board with program(<fpgfile>),
+        or by running fpga.get_system_information(<fpgfile>) if the board
+        was already programmed outside of this class.
+
         :return: x, y (numpy arrays of ADC sample values)
         :rtype: numpy.ndarray
         """
+        if len(self.fpga.snapshots) == 0:
+            raise RuntimeError("Please run AtaSnapFengine.program(...) or \
+                    AtaSnapFengine.fpga.get_system_information(...) with the
+                    loaded bitstream prior to trying to snapshot data")
         d, t = self.fpga.snapshots.ss_adc.read_raw(man_trig=True, man_valid=True)
         d_unpacked = np.fromstring(d['data'], dtype=np.int8)
         x = d_unpacked[0::2]
@@ -360,7 +369,12 @@ class AtaSnapFengine(object):
 
     def quant_spec_read(self, mode="auto"):
         """
-        Read a single accumulated spectrum of the 4-bit quantized data/
+        Read a single accumulated spectrum of the 4-bit quantized data
+
+        This method requires that the currently programmed fpg file is known.
+        This can be achieved either by programming the board with program(<fpgfile>),
+        or by running fpga.get_system_information(<fpgfile>) if the board
+        was already programmed outside of this class.
 
         :param mode: "auto" to read an autocorrelation for each of the X and Y pols.
             "cross" to read a cross-correlation of Xconj(Y).
@@ -372,6 +386,11 @@ class AtaSnapFengine(object):
             spectrum of Xconj(Y).
         :rtype: numpy.array
         """
+        if len(self.fpga.snapshots) == 0:
+            raise RuntimeError("Please run AtaSnapFengine.program(...) or \
+                    AtaSnapFengine.fpga.get_system_information(...) with the
+                    loaded bitstream prior to trying to snapshot data")
+
         assert mode in ["auto", "cross"]
         if mode == "auto":
             self.fpga.write_int("corr_vacc_ss_sel", 0)
@@ -521,6 +540,11 @@ class AtaSnapFengine(object):
         """
         Read a single accumulated spectrum.
 
+        This method requires that the currently programmed fpg file is known.
+        This can be achieved either by programming the board with program(<fpgfile>),
+        or by running fpga.get_system_information(<fpgfile>) if the board
+        was already programmed outside of this class.
+
         :param mode: "auto" to read an autocorrelation for each of the X and Y pols.
             "cross" to read a cross-correlation of Xconj(Y).
         :type mode: str:
@@ -531,6 +555,11 @@ class AtaSnapFengine(object):
             spectrum of Xconj(Y).
         :rtype: numpy.array
         """
+        if len(self.fpga.snapshots) == 0:
+            raise RuntimeError("Please run AtaSnapFengine.program(...) or \
+                    AtaSnapFengine.fpga.get_system_information(...) with the
+                    loaded bitstream prior to trying to snapshot data")
+
         assert mode in ["auto", "cross"]
         if mode == "auto":
             self.fpga.write_int("corr_vacc_ss_sel", 0)
