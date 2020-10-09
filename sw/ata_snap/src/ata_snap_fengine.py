@@ -136,9 +136,9 @@ class AtaSnapFengine(object):
         :rtype: numpy.ndarray
         """
         if len(self.fpga.snapshots) == 0:
-            raise RuntimeError("Please run AtaSnapFengine.program(...) or \
-                    AtaSnapFengine.fpga.get_system_information(...) with the
-                    loaded bitstream prior to trying to snapshot data")
+            raise RuntimeError("Please run AtaSnapFengine.program(...) or "
+                    "AtaSnapFengine.fpga.get_system_information(...) with the "
+                    "loaded bitstream prior to trying to snapshot data")
         d, t = self.fpga.snapshots.ss_adc.read_raw(man_trig=True, man_valid=True)
         d_unpacked = np.fromstring(d['data'], dtype=np.int8)
         x = d_unpacked[0::2]
@@ -387,9 +387,9 @@ class AtaSnapFengine(object):
         :rtype: numpy.array
         """
         if len(self.fpga.snapshots) == 0:
-            raise RuntimeError("Please run AtaSnapFengine.program(...) or \
-                    AtaSnapFengine.fpga.get_system_information(...) with the
-                    loaded bitstream prior to trying to snapshot data")
+            raise RuntimeError("Please run AtaSnapFengine.program(...) or "
+                    "AtaSnapFengine.fpga.get_system_information(...) with the "
+                    "loaded bitstream prior to trying to snapshot data")
 
         assert mode in ["auto", "cross"]
         if mode == "auto":
@@ -556,9 +556,9 @@ class AtaSnapFengine(object):
         :rtype: numpy.array
         """
         if len(self.fpga.snapshots) == 0:
-            raise RuntimeError("Please run AtaSnapFengine.program(...) or \
-                    AtaSnapFengine.fpga.get_system_information(...) with the
-                    loaded bitstream prior to trying to snapshot data")
+            raise RuntimeError("Please run AtaSnapFengine.program(...) or "
+                    "AtaSnapFengine.fpga.get_system_information(...) with the "
+                    "loaded bitstream prior to trying to snapshot data")
 
         assert mode in ["auto", "cross"]
         if mode == "auto":
