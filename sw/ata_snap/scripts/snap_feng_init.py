@@ -6,6 +6,7 @@ import logging
 import sys
 import socket
 import casperfpga
+import struct
 
 from ata_snap import ata_snap_fengine
 
@@ -91,7 +92,7 @@ mac = (0x0202<<32) + struct.unpack('>i', socket.inet_aton(ip_str))[0]
 feng.fpga.gbes.eth_core.setup(mac, ip_str, 10000, '10.10.10.10', '255.255.255.0')
 feng.fpga.gbes.eth_core.configure_core()
 
-if args.specdest is not None:
+if args.eth_spec:
     feng.spec_set_destination(config['spectrometer_dest'])
 
 voltage_config = config.get('voltage_output', None)
