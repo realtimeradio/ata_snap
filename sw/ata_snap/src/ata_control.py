@@ -92,7 +92,7 @@ def rf_switch_ant(ant, pol=None):
     if "Not found" in stdout:
         raise RuntimeError("RF switch input %s%s not found!" % (ant, pol))
     else:
-        print stdout
+        print(stdout)
         return
 
 def set_atten_by_ant(ant, val):
@@ -160,8 +160,8 @@ def reserve_antennas(ants=["1f", "2a", "2b", "2e", "3l", "4g", "4l", "5c"]):
             bfa = cols[1:]
     for ant in ants:
         if ant not in bfa:
-            print nonegroup
-            print ants
+            print(nonegroup)
+            print(ants)
             raise RuntimeError("Failed to move antenna %s to antgroup bfa" % ant)
 
 def release_antennas(ants=["1f", "2a", "2b", "2e", "3l", "4g", "4l", "5c"]):
@@ -178,8 +178,8 @@ def release_antennas(ants=["1f", "2a", "2b", "2e", "3l", "4g", "4l", "5c"]):
             nonegroup = cols[1:]
     for ant in ants:
         if ant not in nonegroup:
-            print nonegroup
-            print ants
+            print(nonegroup)
+            print(ants)
             raise RuntimeError("Failed to move antenna %s to antgroup none" % ant)
 
 def get_ra_dec(source, deg=True):
