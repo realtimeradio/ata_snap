@@ -81,7 +81,9 @@ feng.spec_test_vector_mode(enable=args.tvg)
 # Configure arp table
 for ip, mac in config['arp'].items():
     print ("Configuring ip: %s with mac: %s" %(ip, mac))
-    feng.fpga.gbes.eth_core.set_single_arp_entry(ip, mac)
+    for ethn, eth in enumerate(feng.fpga.gbes):
+        eth.set_single_arp_entry(ip, mac)
+
 # Configure 10G IP
 if args.eth:
     ip_str = socket.gethostbyname(args.eth.strip())
@@ -89,8 +91,9 @@ else:
     ip_str = socket.gethostbyname(feng.fpga.host)
 
 mac = (0x0202<<32) + struct.unpack('>i', socket.inet_aton(ip_str))[0]
-feng.fpga.gbes.eth_core.setup(mac, ip_str, 10000, '10.10.10.10', '255.255.255.0')
-feng.fpga.gbes.eth_core.configure_core()
+for ethn, eth in enumerate(feng.fpga.gbes):
+    eth.setup(mac + ethn, ip_str, 10000, '10.10.10.10', '255.255.255.0')
+    eth.configure_core()
 
 if args.eth_spec:
     feng.spec_set_destination(config['spectrometer_dest'])
