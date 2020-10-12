@@ -839,6 +839,8 @@ class AtaSnapFengine(object):
         n_slots_per_dest = (n_chans // self.n_chans_per_packet) // n_dests
 
         n_interfaces_req = int(np.ceil(n_chans / self.n_chans_out))
+        self.logger.info('Number of interfaces to be used: %d' % n_interfaces_req)
+        self.logger.info('Number of interfaces available: %d' % self.n_interfaces)
 
         self.logger.info('Number of destinations: %d' % n_dests)
         self.logger.info('Number of slots per destination: %d' % n_slots_per_dest)
@@ -909,7 +911,7 @@ class AtaSnapFengine(object):
             self.logger.info("Sending slot %d to %s (start channel %d) on interface %d" % (slot, slot_dest[slot], sc, interface))
             self.fpga.write_int('packetizer%d_ants' % interface, self.ant_id, word_offset=slot//n_interfaces_req)
             self.fpga.write_int('packetizer%d_chans' % interface, sc, word_offset=slot//n_interfaces_req)
-            self.fpga.write_int('packetizer%d_ips' % i, _ip_to_int(slot_dest[slot]), word_offset=slot//n_interfaces_req)
+            self.fpga.write_int('packetizer%d_ips' % interface, _ip_to_int(slot_dest[slot]), word_offset=slot//n_interfaces_req)
             # Remapped index of the channel associated with this slot
             out_c = ((self.n_interfaces * (slot // n_interfaces_req)) + interface) * self.n_chans_per_packet
             if not slot_is_valid[slot]:
@@ -934,15 +936,20 @@ class AtaSnapFengine(object):
                 'chans'     : A list of integer channel numbers which are present in this
                               block of channels.
         """
-        new_chan_map = struct.unpack('>%dH' % self.n_chans_f, self.fpga.read('chan_reorder_reorder3_map1', 2*self.n_chans_f))
+        PARALLEL_CHANS = 4
+        new_chan_map = list(struct.unpack('>%dH' % (self.n_chans_f // PARALLEL_CHANS), self.fpga.read('chan_reorder_reorder3_map1', 2*(self.n_chans_f//PARALLEL_CHANS))))
         n_slots = self.n_interfaces * self.n_chans_out // self.n_chans_per_packet
         outputs = []
-        for slot in range(slots):
-            chans = new_chan_map[slot * self.n_chans_out : (slot+1) * self.n_chans_out]
+        for slot in range(n_slots):
+            chans_p = new_chan_map[slot * (self.n_chans_per_packet // PARALLEL_CHANS) : (slot+1) * (self.n_chans_per_packet // PARALLEL_CHANS)]
+            chans = []
+            for c in chans_p:
+                chans += list(range(PARALLEL_CHANS * c, PARALLEL_CHANS * (c+1)))
+            print(chans)
             interface = slot % self.n_interfaces
-            dest_ip = _int_to_ip(self.read_uint('packetizer%d_ips' % interface, word_offset=slot//self.n_interfaces)
-            ant = self.read_uint('packetizer%d_ants' % interface, word_offset=slot//self.n_interfaces)
-            header_chan = self.read_uint('packetizer%d_chans' % interface, word_offset=slot//self.n_interfaces)
+            dest_ip = _int_to_ip(self.fpga.read_uint('packetizer%d_ips' % interface, word_offset=slot//self.n_interfaces))
+            ant = self.fpga.read_uint('packetizer%d_ants' % interface, word_offset=slot//self.n_interfaces)
+            header_chan = self.fpga.read_uint('packetizer%d_chans' % interface, word_offset=slot//self.n_interfaces)
             if dest_ip == "0.0.0.0":
                 # Slot isn't going anywhere
                 continue
