@@ -34,7 +34,7 @@ Output Format
 ~~~~~~~~~~~~~
 
 Data shall be output using Ethernet jumbo frames.
-Data payloads shall group multiple polarizations, frequency channels, and time samples in each packet ordered (fastest to slowest axis) as ``polarization x freq. channel x time sample``
+Data payloads shall group multiple polarizations, frequency channels, and time samples in each packet ordered (fastest to slowest axis) as ``polarization x time sample x freq. channel``
 
 A variety of outputs with different numbers of samples, and frequency channels gathered in each packet shall be provided.
 
