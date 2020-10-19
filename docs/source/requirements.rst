@@ -86,4 +86,6 @@ Data payloads can be constructed with 16 time samples per packet, and any multip
 
 Any total number of frequency channels may be transmitted, subject to these restriction, and the total Ethernet bandwidth available.
 
+In 4-bit mode, data may be optionally swizzled as per https://github.com/realtimeradio/ata_snap/issues/7 .
+
 Each data packet has an application header of 16 bytes. Total protocol overhead (including this application header) is 70 bytes per packet (<2% for 4kB packets).
