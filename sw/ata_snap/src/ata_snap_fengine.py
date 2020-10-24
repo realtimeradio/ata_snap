@@ -86,6 +86,7 @@ class AtaSnapFengine(object):
         The test this method uses is searching for the register
         named `version` in the running firmware, so it can
         easily be fooled.
+
         :return: True if programmed, False otherwise
         :rtype: bool
         """
@@ -202,7 +203,7 @@ class AtaSnapFengine(object):
         while (self.sync_get_ext_count() == count_now):
             time.sleep(0.05)
 
-    def sync_arm(self):
+    def sync_arm(self, manual_trigger=False):
         """
         Arm the FPGA's sync generators for triggering on a 
         subsequent PPS.
@@ -213,6 +214,10 @@ class AtaSnapFengine(object):
         4. Write this time as a 32-bit UNIX time integer to the FPGA, to record
         the sync event.
 
+        :param manual_trigger: Use a software sync, rather than relying on an external PPS pulse.
+            See `sync_manual_trigger` for more information.
+        :type manual_trigger: bool
+
         :return: Sync trigger time, in UNIX format
         :rval: int
         """
@@ -222,7 +227,28 @@ class AtaSnapFengine(object):
         self.fpga.write_int('sync_arm', 0)
         sync_time = int(np.ceil(time.time())) + 2
         self.fpga.write_int('sync_sync_time', sync_time)
+        if manual_trigger:
+            wait_time = sync_time - time.time()
+            # wait time should always be positive, unless for some reason
+            # writing the sync_time register took an abnormally long time
+            if wait_time > 0:
+                time.sleep(wait_time)
+            self.sync_manual_trigger()
         return sync_time
+
+    def sync_manual_trigger(self):
+        """
+        Issue a sync using the F-engine's built-in software trigger.
+        This can be useful for single board deployments or testing where
+        an external PPS signal may not be available.
+        However, a manual sync cannot synchronize multiple boards, and
+        will only be aligned to the expected sync time at the ~1s level.
+        """
+        self.logger.info('Issuing manual sync trigger')
+        for i in range(3):
+            self.fpga.write_int('sync_arm', 0)
+            self.fpga.write_int('sync_arm', 1<<4)
+            self.fpga.write_int('sync_arm', 0)
 
     def sync_get_last_sync_time(self):
         """
