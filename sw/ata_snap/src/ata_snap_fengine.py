@@ -331,51 +331,19 @@ class AtaSnapFengine(object):
         self.logger.info('Setting accumulation length to %d spectra' % acclen)
         self._sync_set_period(acclen * self.n_chans_f * 2 // 8) # *2 for real-FFT; /8 for ADC demux
 
-    #def _assign_channel(self, in_num, out_num):
-    #    """
-    #    Reorder the channels such that the `out_num`th channel
-    #    out of the reorder block is channel `in_num`.
-    #    """
-    #    self.fpga.write_int('chan_reorder_chan_remap_map', in_num, word_offset=out_num)
-
-    #def _assign_channels(self, in_nums, out_num_start):
-    #    """
-    #    Reorder the channels such that the `out_num + i`th channel
-    #    out of the reorder block is channel `in_num` + i.
-    #    """
-    #    in_nums_str = struct.pack('>L', *in_nums)
-    #    self.fpga.write('chan_reorder_chan_remap_map', in_nums_str, offset=out_num_start*4)
-
-    #def fft_set_shift(self, shift=0b0011111100000):
-    #    """
-    #    Set the FFT shift pattern.
-    #    The firmware interprets the shift value as a binary value, with
-    #    each bit controlling the shift (divide-by-two) at one stage of
-    #    the FFT. The number of stages in the FFT is equal to log2(FFT_SIZE).
-
-    #    Example usage:
-    #        `fft_set_shift(2**13-1)` : Shift down every stage of an 8k-point FFT
-    #        `fft_set_shift(0b11)` : Shift down on the first two stages of the FFT only
-    #        `fft_set_shift(0)` : Don't shift at any stage of the FFT
-    #    
-    #    The necessity for shifting depends on the input power levels into the FFT,
-    #    the number of bits in the FFT data path, and the nature of the input signal.
-    #    Sinusoidal input signals grow by a factor of 2 at each FFT stage, and therefore
-    #    might need to be shifted every stage.
-    #    Noise-like signals grow by a factor of sqrt(2) at each FFT stage, and therefore
-    #    might only needed to be shifted every other stage.
-    #    Setting the FFT shift should be done in concert with monitoring the FFT overflow
-    #    state with `fft_of_detect`.
-
-    #    NB: in firmware versions >=1.02 the FFT input data are padded by 7 bits. For an
-    #    8192 point transform, this means 6 bits of shifting is sufficient to avoid
-    #    overflow.
-
-    #    :param shift: Shift schedule
-    #    :type shift: int
-    #    """
-    #    self.logger.info('Setting FFT shift to 0x%x' % shift)
-    #    self.fpga.write_int('pfb_fft_shift', shift)
+    def _reorder_channels(self, order, transpose_time=True):
+        """
+        Reorder the channels such that the channel order[i]
+        emerges out of the reorder in position i.
+        """
+        out_array = np.zeros([self.n_times_per_packet *  self.n_chans_f // self.n_chans_per_block], dtype='>i2')
+        if not transpose_time:
+            raise NotImplementedError("Reorder only implemented with time fastest ordering")
+        for xn, x in enumerate(order):
+            for t in range(self.n_times_per_packet):
+                out_array[xn * self.n_times_per_packet + t] = x + (t*self.n_chans_f // self.n_chans_per_block)
+        
+        self.fpga.write('chan_reorder_reorder3_map', out_array.tobytes())
 
     def fft_of_detect(self):
         """
@@ -388,27 +356,7 @@ class AtaSnapFengine(object):
         """
         return bool(self.fpga.read_uint('pfb_fft_of'))
 
-    def fft_cast_of_detect(self):
-        """
-        Read the FFT's cast overflow detection register. Will return True if
-        an overflow has been detected in the last accumulation period. False otherwise.
-        Increase the FFT shift schedule to avoid persistent overflows.
-
-        FFT processing pads 18-bit input data with 7 guard bits (to reach 25 bits), performs
-        an FFT with a 25-bit data path, and then throws away the top 7 bits to retain 18 bits
-        of data.
-        In the process of this bit truncation, data may overflow. Unlike an internal FFT overflow,
-        which corrupts an entire spectrum, an overflow during casting simply corrupts the channel
-        with the overflow. Since this is likely to be a bin containing RFI, this may be acceptable,
-        but you should check the spectrometer spectra to ensure the majority of the spectrum remains
-        intact.
-
-        :return: True if post-FFT cast overflowed in the last accumulation period, False otherwise.
-        :rtype: bool
-        """
-        return bool(self.fpga.read_uint('pfb_cast_overflow'))
-
-    def quant_spec_read(self, mode="auto"):
+    def quant_spec_read(self, pol=0):
         """
         Read a single accumulated spectrum of the 4-bit quantized data
 
@@ -417,14 +365,10 @@ class AtaSnapFengine(object):
         or by running fpga.get_system_information(<fpgfile>) if the board
         was already programmed outside of this class.
 
-        :param mode: "auto" to read an autocorrelation for each of the X and Y pols.
-            "cross" to read a cross-correlation of Xconj(Y).
-        :type mode: str:
-        :raises AssertionError: if mode is not "auto" or "cross"
-        :return: If mode="auto": A tuple of two numpy arrays, xx, yy, containing
-            a power spectrum from the X and Y polarizations.
-            If mode="cross": A complex numpy array containing the cross-power
-            spectrum of Xconj(Y).
+        :param pol: Polarization to read
+        :type pol: int
+        :raises AssertionError: if pol is not 0 or 1
+        :return: A numpy array containing the polarization's power spectrum
         :rtype: numpy.array
         """
         if len(self.fpga.snapshots) == 0:
@@ -432,40 +376,11 @@ class AtaSnapFengine(object):
                     "AtaSnapFengine.fpga.get_system_information(...) with the "
                     "loaded bitstream prior to trying to snapshot data")
 
-        assert mode in ["auto", "cross"]
-        if mode == "auto":
-            self.fpga.write_int("corr_vacc_ss_sel", 0)
-        else:
-            self.fpga.write_int("corr_vacc_ss_sel", 1)
-
-        self.fpga.snapshots.corr_vacc_ss_ss0.arm() # This arms all RAMs
-        d0, t0 = self.fpga.snapshots.corr_vacc_ss_ss0.read_raw(arm=False)
-        d1, t1 = self.fpga.snapshots.corr_vacc_ss_ss1.read_raw(arm=False)
-        d0i = struct.unpack(">%di" % (d0["length"] // 4), d0["data"])
-        d1i = struct.unpack(">%di" % (d1["length"] // 4), d1["data"])
-        if mode == "auto":
-            xx_0  = d0i[0::2]
-            xx_1  = d1i[0::2]
-            yy_0  = d0i[1::2]
-            yy_1  = d1i[1::2]
-            xx = np.zeros(self.n_chans_f)
-            yy = np.zeros(self.n_chans_f)
-            for i in range(self.n_chans_f // 2):
-                xx[2*i]   = xx_0[i]
-                xx[2*i+1] = xx_1[i]
-                yy[2*i]   = yy_0[i]
-                yy[2*i+1] = yy_1[i]
-            return xx, yy
-        elif mode == "cross":
-            xy_0_r = d0i[0::2]
-            xy_0_i = d0i[1::2]
-            xy_1_r = d1i[0::2]
-            xy_1_i = d1i[1::2]
-            xy = np.zeros(self.n_chans_f, dtype=np.complex)
-            for i in range(self.n_chans_f // 2):
-                xy[2*i]   = xy_0_r[i] + 1j*xy_0_i[i]
-                xy[2*i+1] = xy_1_r[i] + 1j*xy_1_i[i]
-            return xy
+        assert pol in [0,1]
+        self.fpga.write_int("corr_vacc_ss_sel", pol)
+        d0, t0 = self.fpga.snapshots.corr_vacc_ss_ss0.read_raw()
+        d0i = np.array(struct.unpack(">%di" % (d0["length"] // 4), d0["data"]))
+        return d0i
 
     def eq_load_coeffs(self, pol, coeffs):
         """
@@ -888,6 +803,9 @@ class AtaSnapFengine(object):
         assert n_bits in [4,8], "Only 4- or 8-bit output modes are supported!"
         max_chans_per_packet = 8*8192 // (2*n_bits) // self.n_times_per_packet // 2
 
+        if n_bits == 8:
+            raise NotImplementedError("8-bit mode not yet implemented")
+
         # Set the firmware bitwidth register
         if n_bits == 8:
             self.fpga.write_int('chan_reorder_use_8bit', 1)
@@ -997,6 +915,10 @@ class AtaSnapFengine(object):
                 headers[interface][slot[interface]]['chans'] = range(start_chan, start_chan + packetizer_chan_granularity)
                 start_chan += packetizer_chan_granularity
                 slot[interface] += 1
+            # If we are in 4-bit mode, the data going in to both interfaces is the same,
+            # so the next interface should start at the slot after the interface we have just used
+            if n_bits == 4:
+                slot[(interface + 1) % n_interfaces] = slot[interface]
             # After a packet we have dead time
             slot[interface] += spare_blocks_per_packet
             interface = (interface + 1) % n_interfaces
@@ -1009,6 +931,7 @@ class AtaSnapFengine(object):
             self._populate_headers(i, headers[i])
         
         # Load the chan reorder map
+        self._reorder_channels(range(self.n_chans_f // self.n_chans_per_block))
 
     def _populate_headers(self, interface, headers):
         h_bytestr = b''
@@ -1019,7 +942,7 @@ class AtaSnapFengine(object):
                         + (int(h['first']) << 56) \
                         + (int(h['is_8_bit']) << 49) \
                         + (int(h['is_time_fastest']) << 48) \
-                        + ((h['n_chans'] & 0xffff) << 24) \
+                        + ((h['n_chans'] & 0xffff) << 32) \
                         + ((h['chans'][0] & 0xffff) << 16) \
                         + ((h['feng_id'] & 0xff) << 0)
             h_bytestr += struct.pack('>Q', header_word)

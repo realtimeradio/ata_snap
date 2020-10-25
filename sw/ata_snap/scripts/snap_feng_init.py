@@ -108,10 +108,11 @@ if args.eth:
 else:
     ip_str = socket.gethostbyname(feng.fpga.host)
 
-mac = (0x0202<<32) + struct.unpack('>i', socket.inet_aton(ip_str))[0]
 for ethn, eth in enumerate(feng.fpga.gbes):
-    eth.setup(mac + ethn, ip_str, 10000, config['gateway'], '255.255.255.0')
-    eth.configure_core()
+    ip = config["interfaces"][eth.name]
+    mac = config["arp"][ip]
+    port = 10000
+    eth.configure_core(mac, ip, port)
 
 if args.eth_spec:
     feng.spec_set_destination(config['spectrometer_dest'])
@@ -133,15 +134,18 @@ if args.eth_spec:
 elif args.eth_volt:
     feng.eth_set_mode('voltage')
 
+if args.sync:
+    if not args.mansync:
+        feng.sync_wait_for_pps()
+    feng.sync_arm(manual_trigger=args.mansync)
+
+# Reset ethernet cores prior to enabling
+feng.eth_reset()
 if args.eth_spec or args.eth_volt:
     logger.info('Enabling Ethernet output')
     feng.eth_enable_output(True)
 else:
     logger.info('Not enabling Ethernet output, since neither voltage or spectrometer 10GbE output flags were set.')
 
-if args.sync:
-    if not args.mansync:
-        feng.sync_wait_for_pps()
-    feng.sync_arm(manual_trigger=args.man_sync)
 
 logger.info("Initialization complete!")
