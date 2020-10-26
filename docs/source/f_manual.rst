@@ -1,4 +1,4 @@
-.. |version| replace:: 1.1.0
+.. |version| replace:: 2.0.0
 
 ATA SNAP F-Engine Firmware User Manual
 ======================================
@@ -67,7 +67,7 @@ Output Data Formats
 Spectrometer Packets
 ~~~~~~~~~~~~~~~~~~~~
 
-In versions 1.1.x  of the SNAP firmware, each spectrometer dump is a 64 kiB data set, comprising 4096 channels and 4 32-bit floating point (IEEE 754 single precision: 1-bit sign, 8-bit exponent, 23-bit fraction)  words per channel.
+In versions >1.1.x  of the SNAP firmware, each spectrometer dump is a 64 kiB data set, comprising 4096 channels and 4 32-bit floating point (IEEE 754 single precision: 1-bit sign, 8-bit exponent, 23-bit fraction)  words per channel.
 Each data dump is transmitted from the SNAP in 8 UDP packets, each with an 512 channel (8 kiB) payload and 8 byte header:
 
 .. code-block:: C
