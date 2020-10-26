@@ -105,7 +105,7 @@ Voltage Packets
 ~~~~~~~~~~~~~~~
 
 The *Voltage* mode of the SNAP firmware outputs a continuous stream of voltage data, encapsulated in UDP packets.
-Each packet contains a data payload of 8192 bytes, made up of 16 time samples for 256 frequency channels of dual-polarization data:
+Each packet contains a data payload of 8192 bytes, made up of 16 time samples for up to 256 frequency channels of dual-polarization data:
 
 .. code-block:: C
 
