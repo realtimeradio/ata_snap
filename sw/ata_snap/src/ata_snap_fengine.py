@@ -339,7 +339,18 @@ class AtaSnapFengine(object):
         out_array = np.zeros([self.n_times_per_packet *  self.n_chans_f // self.n_chans_per_block], dtype='>i2')
         if not transpose_time:
             raise NotImplementedError("Reorder only implemented with time fastest ordering")
+        # Check input
+        order = np.array(order)
+        # We must load the reorder map in one go
+        assert order.shape[0] == (self.n_chans_f // self.n_chans_per_block)
+        # Start points can only be integer multiples of the number of channels in a word
+        for o in order:
+            assert o < (self.n_chans_f // self.n_chans_per_block)
+            assert o % 1 == 0
+        # All elements must appear only once
+        assert np.unique(order).shape[0] == order.shape[0]
         for xn, x in enumerate(order):
+            #print("Mapping channel %d to position %d" % (x, xn))
             for t in range(self.n_times_per_packet):
                 out_array[xn * self.n_times_per_packet + t] = x + (t*self.n_chans_f // self.n_chans_per_block)
         
@@ -871,7 +882,7 @@ class AtaSnapFengine(object):
                                'valid': False,
                                'last': False,
                                'dest': '0.0.0.0',
-                               'chans': range(packetizer_chan_granularity),
+                               'chans': [0] * packetizer_chan_granularity,
                                'feng_id' : self.feng_id,
                                'n_chans' : n_chans_per_packet,
                                'is_8_bit' : n_bits == 8,
@@ -880,7 +891,7 @@ class AtaSnapFengine(object):
                       ]
                   for j in range(n_interfaces)]
 
-        chan_reorder_map = np.zeros(self.n_chans_f * self.n_times_per_packet)
+        chan_reorder_map = -1 * np.ones(self.n_chans_f, dtype=np.int32)
 
         # How many slots packetizer blocks do we need to use?
         # Lazily force data rate out of each interface to be the same
@@ -902,10 +913,9 @@ class AtaSnapFengine(object):
         # block in packet, the next `spare_blocks_per_packet` can be marked invalid
 
         # Now start allocating channels to slots
-        remap_start = 0
         interface = 0
         slot = [0 for _ in range(n_interfaces)]
-        print(n_interfaces)
+        input_chan_id = 0
         for p in range(n_packets):
             for s in range(n_slots_per_packet):
                 headers[interface][slot[interface]]['first'] = s==0
@@ -913,6 +923,9 @@ class AtaSnapFengine(object):
                 headers[interface][slot[interface]]['last'] = s==(n_slots_per_packet-1)
                 headers[interface][slot[interface]]['dest'] = dup_dests[p]
                 headers[interface][slot[interface]]['chans'] = range(start_chan, start_chan + packetizer_chan_granularity)
+                input_chan_id = slot[interface] * packetizer_chan_granularity
+                #print(p, s, input_chan_id)
+                chan_reorder_map[input_chan_id : input_chan_id + packetizer_chan_granularity] = range(start_chan, start_chan + packetizer_chan_granularity)
                 start_chan += packetizer_chan_granularity
                 slot[interface] += 1
             # If we are in 4-bit mode, the data going in to both interfaces is the same,
@@ -923,15 +936,33 @@ class AtaSnapFengine(object):
             slot[interface] += spare_blocks_per_packet
             interface = (interface + 1) % n_interfaces
             
-        for i in range(n_interfaces):
-            for j in range(packetizer_n_blocks):
-                print(i,j,headers[i][j])
+        #for i in range(n_interfaces):
+        #    for j in range(packetizer_n_blocks):
+        #        print(i,j,headers[i][j])
         # Load the headers
         for i in range(n_interfaces):
             self._populate_headers(i, headers[i])
         
         # Load the chan reorder map
-        self._reorder_channels(range(self.n_chans_f // self.n_chans_per_block))
+
+        # reduce the channel reorder map by the number of parallel chans in a reorder word
+        chan_reorder_map = chan_reorder_map[::self.n_chans_per_block]
+        for cn, c in enumerate(chan_reorder_map):
+            if c == -1:
+                continue
+            assert (c % self.n_chans_per_block) == 0
+            chan_reorder_map[cn] /= self.n_chans_per_block
+        # fill in the gaps (indicated by -1) in the above map with allowed channels we haven't used
+        # Note that you _cannot_ repeat channels in the map, since we aren't double buffering
+        possible_chans = list(range(0, self.n_chans_f // self.n_chans_per_block))
+        for c in chan_reorder_map:
+            if c == -1:
+                continue
+            possible_chans.remove(c)
+        for i in range(len(chan_reorder_map)):
+            if chan_reorder_map[i] == -1:
+                chan_reorder_map[i] = possible_chans.pop(0)
+        self._reorder_channels(chan_reorder_map)
 
     def _populate_headers(self, interface, headers):
         h_bytestr = b''

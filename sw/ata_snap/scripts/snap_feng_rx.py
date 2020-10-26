@@ -12,15 +12,20 @@ from subprocess import Popen
 RXBUF = 8500
 
 def unpack(pkt):
-    header = struct.unpack(">QQ", pkt[0:16])
+    header = struct.unpack(">BBHHHQ", pkt[0:16])
     d = np.fromstring(pkt[16:], dtype=">B")
     h = {}
-    h['timestamp'] = header[1]
-    h['feng_id'] = header[0] & 0xffff
-    h['chan']    = (header[0] >> 16) & 0xffff
-    h['n_chans'] = (header[0] >> 32) & 0xffff
-    h['type']    = (header[0] >> 48) & 0xff
-    h['version'] = (header[0] >> 56) & 0xff
+    h['timestamp'] = header[5]
+    h['feng_id'] = header[4]
+    h['chan']    = header[3]
+    h['n_chans'] = header[2]
+    h['type']    = header[1]
+    h['version'] = header[0]
+    #h['feng_id'] = header[0] & 0xffff
+    #h['chan']    = (header[0] >> 16) & 0xffff
+    #h['n_chans'] = (header[0] >> 32) & 0xffff
+    #h['type']    = (header[0] >> 48) & 0xff
+    #h['version'] = (header[0] >> 56) & 0xff
     x = d[0::2]
     y = d[1::2]
     return h, x, y

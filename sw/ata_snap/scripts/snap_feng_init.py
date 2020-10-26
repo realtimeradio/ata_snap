@@ -98,7 +98,7 @@ feng.spec_test_vector_mode(enable=args.tvg)
 
 # Configure arp table
 for ip, mac in config['arp'].items():
-    print ("Configuring ip: %s with mac: %s" %(ip, mac))
+    print ("Configuring ip: %s with mac: %x" %(ip, mac))
     for ethn, eth in enumerate(feng.fpga.gbes):
         eth.set_single_arp_entry(ip, mac)
 
@@ -119,12 +119,14 @@ if args.eth_spec:
 
 voltage_config = config.get('voltage_output', None)
 if voltage_config is not None:
+    n_interfaces = voltage_config.get('n_interfaces', feng.n_interfaces)
     n_chans = voltage_config['n_chans']
     start_chan = voltage_config['start_chan']
     dests = voltage_config['dests']
     logger.info('Voltage output sending channels %d to %d' % (start_chan, start_chan+n_chans-1))
     logger.info('Destination IPs: %s' %dests)
-    feng.select_output_channels(start_chan, n_chans, dests)
+    logger.info('Using %d interfaces' % n_interfaces)
+    feng.select_output_channels(start_chan, n_chans, dests, n_interfaces=n_interfaces)
 
 feng.eth_set_dest_port(config['dest_port'])
 
@@ -134,11 +136,6 @@ if args.eth_spec:
 elif args.eth_volt:
     feng.eth_set_mode('voltage')
 
-if args.sync:
-    if not args.mansync:
-        feng.sync_wait_for_pps()
-    feng.sync_arm(manual_trigger=args.mansync)
-
 # Reset ethernet cores prior to enabling
 feng.eth_reset()
 if args.eth_spec or args.eth_volt:
@@ -147,5 +144,9 @@ if args.eth_spec or args.eth_volt:
 else:
     logger.info('Not enabling Ethernet output, since neither voltage or spectrometer 10GbE output flags were set.')
 
+if args.sync:
+    if not args.mansync:
+        feng.sync_wait_for_pps()
+    feng.sync_arm(manual_trigger=args.mansync)
 
 logger.info("Initialization complete!")
