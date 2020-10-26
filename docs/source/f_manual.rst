@@ -126,7 +126,7 @@ The header entries are all encoded network-endian and should be interpretted as 
   - ``version``; *Firmware version*: Bit [7] is always 1 for *Voltage* packets. The remaining bits contain a compile-time defined firmware version, represented in the form bit[6].bits[5:3].bits[2:0]. This document refers to firmware version |version|.
   - ``type``; *Packet type*: Bit [0] is 1 if the axes of data payload are in order [slowest to fastest] channel x time x polarization. This is currently the only supported mode. Bit [1] is 0 if the data payload comprises 4+4 bit complex integers. This is currently the only supported mode.
   - ``n_chans``; *Number of Channels*: Indicates the number of frequency channels present in the payload of this data packet.
-  - ``chan``; *Channel number*: The index of the first channel present in this packet. For example, a channel number :math:`c` implies the packet contains channels :math:`c` to :math:`c+\texttt{n_chans}-1`.
+  - ``chan``; *Channel number*: The index of the first channel present in this packet. For example, a channel number ``c`` implies the packet contains channels ``c`` to ``c + n_chans - 1``.
   - ``feng_id``; *Antenna ID*: A runtime configurable ID which uniquely associates a packet with a particular SNAP board.
   - ``timestamp``; *Sample number*: The index of the first time sample present in this packet. For example, a sample number :math:`s` implies the packet contains samples :math:`s` to :math:`s+15`. Sample number can be referred to GPS time through knowledge of the system sampling rate and accumulation length parameters, and the system was last synchronized. See `sec-timing`.
 
