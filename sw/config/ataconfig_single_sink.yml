@@ -9,17 +9,12 @@ spectrometer_dest: 10.11.1.151
 # over 10GbE in voltage dump mode.
 voltage_output:
   start_chan: 0
-  n_chans: 4032
+  n_chans: 672
   # Channels will be spread over the following
   # destinations so that the first n_chans // len(dests)
   # go to the first IP address, etc.
   dests:
       - 10.11.1.151
-      - 10.11.1.152
-      - 10.11.1.153
-      - 10.11.1.154
-      - 10.11.1.155
-      - 10.11.1.156
   # Number of SNAP 10G outputs to use for voltages
   n_interfaces: 2
 # All relevant IP/MAC mapping should be manually

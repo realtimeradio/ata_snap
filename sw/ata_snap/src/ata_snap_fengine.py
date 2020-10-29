@@ -61,7 +61,7 @@ class AtaSnapFengine(object):
     n_interfaces = 2 # Number of available 10GbE interfaces
     n_times_per_packet = 16 # Number of time samples per packet
     packetizer_granularity = 2**5 # Number of 64-bit words ber packetizer step
-    n_coeff_shared = 8 # Number of adjacent frequency channels sharing an EQ coefficient
+    n_coeff_shared = 4 # Number of adjacent frequency channels sharing an EQ coefficient
 
     def __init__(self, host, feng_id=0, transport=casperfpga.TapcpTransport):
         """
@@ -190,7 +190,7 @@ class AtaSnapFengine(object):
             n = 2
         clip_count = np.array(x[1::4]).reshape([16//n, n]).sum(axis=0)
         mean = np.array(x[2::4]).reshape([16//n, n]).mean(axis=0)
-        mean_pow= np.array(x[3::4]).reshape([16//n, n]).mean(axis=0)
+        mean_power = np.array(x[3::4]).reshape([16//n, n]).mean(axis=0)
         return clip_count, mean, mean_power
 
     def sync_wait_for_pps(self):
@@ -388,8 +388,8 @@ class AtaSnapFengine(object):
                     "loaded bitstream prior to trying to snapshot data")
 
         assert pol in [0,1]
-        self.fpga.write_int("corr_vacc_ss_sel", pol)
-        d0, t0 = self.fpga.snapshots.corr_vacc_ss_ss0.read_raw()
+        self.fpga.write_int("corr_quant_vacc_ss_sel", pol)
+        d0, t0 = self.fpga.snapshots.corr_quant_vacc_ss_ss0.read_raw()
         d0i = np.array(struct.unpack(">%di" % (d0["length"] // 4), d0["data"]))
         return d0i
 
@@ -553,8 +553,8 @@ class AtaSnapFengine(object):
             yy_1  = d1i[1::2]
             yy_2  = d2i[1::2]
             yy_3  = d3i[1::2]
-            xx = np.zeros(self.n_chans_f)
-            yy = np.zeros(self.n_chans_f)
+            xx = np.zeros(self.n_chans_f, dtype=np.int64)
+            yy = np.zeros(self.n_chans_f, dtype=np.int64)
             for i in range(self.n_chans_f // 4):
                 xx[4*i]   = xx_0[i]
                 xx[4*i+1] = xx_1[i]

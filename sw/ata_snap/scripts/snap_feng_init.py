@@ -18,8 +18,6 @@ parser.add_argument('fpgfile', type=str,
                     help = '.fpgfile to program')
 parser.add_argument('configfile', type=str,
                     help ='Configuration file')
-parser.add_argument('-e', dest='eth', action='store', type=str,
-                    default=None, help='Use 10gbe address on Ethernet trans')
 parser.add_argument('-s', dest='sync', action='store_true', default=False,
                     help ='Use this flag to re-arm the design\'s sync logic')
 parser.add_argument('-m', dest='mansync', action='store_true', default=False,
@@ -61,7 +59,6 @@ with open(args.configfile, 'r') as fh:
 config['acclen'] = args.acclen or config['acclen']
 config['spectrometer_dest'] = args.specdest or config['spectrometer_dest']
 config['dest_port'] = args.dest_port or config['dest_port']
-config['gateway'] = config.get('gateway', '10.10.10.10')
 
 if args.usetapcp:
     transport = casperfpga.TapcpTransport
@@ -72,7 +69,6 @@ logger.info("Connecting to %s" % args.host)
 feng = ata_snap_fengine.AtaSnapFengine(args.host,
         transport=transport,
         feng_id=args.feng_id)
-feng.logger.addHandler(handler)
 
 if not args.skipprog:
     logger.info("Programming %s with %s" % (args.host, args.fpgfile))
@@ -102,14 +98,8 @@ for ip, mac in config['arp'].items():
     for ethn, eth in enumerate(feng.fpga.gbes):
         eth.set_single_arp_entry(ip, mac)
 
-# Configure 10G IP
-if args.eth:
-    ip_str = socket.gethostbyname(args.eth.strip())
-else:
-    ip_str = socket.gethostbyname(feng.fpga.host)
-
-for ethn, eth in enumerate(feng.fpga.gbes):
-    ip = config["interfaces"][eth.name]
+for i in range(2):
+    ip = config["interfaces"][feng.fpga.host][i]
     mac = config["arp"][ip]
     port = 10000
     eth.configure_core(mac, ip, port)
@@ -136,6 +126,11 @@ if args.eth_spec:
 elif args.eth_volt:
     feng.eth_set_mode('voltage')
 
+if args.sync:
+    if not args.mansync:
+        feng.sync_wait_for_pps()
+    feng.sync_arm(manual_trigger=args.mansync)
+
 # Reset ethernet cores prior to enabling
 feng.eth_reset()
 if args.eth_spec or args.eth_volt:
@@ -143,10 +138,5 @@ if args.eth_spec or args.eth_volt:
     feng.eth_enable_output(True)
 else:
     logger.info('Not enabling Ethernet output, since neither voltage or spectrometer 10GbE output flags were set.')
-
-if args.sync:
-    if not args.mansync:
-        feng.sync_wait_for_pps()
-    feng.sync_arm(manual_trigger=args.mansync)
 
 logger.info("Initialization complete!")
