@@ -16,7 +16,7 @@ voltage_output:
   dests:
       - 10.11.1.151
   # Number of SNAP 10G outputs to use for voltages
-  n_interfaces: 2
+  n_interfaces: 1
 # All relevant IP/MAC mapping should be manually
 # specified here
 arp:

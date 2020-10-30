@@ -166,13 +166,14 @@ class AtaSnapFengine(object):
 
         :param per_core: If True, return stats for each ADC core. If false, return stats for each ADC channel.
         :type per_core: bool
-        :returns: A 3-tuple of numpy.ndarray, with either 4 entries (if per_core=True) or 2 entries (if per_core=False).
+        :return: A 3-tuple of numpy.ndarray, with either 4 entries (if per_core=True) or 2 entries (if per_core=False).
             The tuple is (clip_count, mean, mean_power) where clip_count is the number of clipping events in the last
-            512k samples, mean is the average of the last 64k samples, and mean_power is the mean power of the last
+            512k samples, mean is the average of the last 512k samples, and mean_power is the mean power of the last
             512k samples.
             If per_core=True, each array has 4 entries, representing the four ADC cores. Cores 0, 2 digitize the X-pol
-            RF input, and cores 1, 3 digitize the Y-pol input.
+            RF input, and cores 1, 3 digitize the Y-pol input. In this case stats are calculated over 256k samples per core.
             If per_core=False, each array has 2 entries, with the first address the X-pol RF input, and the second the Y-pol.
+            In this case statistics are calculated over 512k samples per polarization.
         :rtype: (numpy.ndarray, np.ndarray, np.ndarray)
         """
         # First enable the capture
@@ -189,9 +190,165 @@ class AtaSnapFengine(object):
         else:
             n = 2
         clip_count = np.array(x[1::4]).reshape([16//n, n]).sum(axis=0)
-        mean = np.array(x[2::4]).reshape([16//n, n]).mean(axis=0)
-        mean_power = np.array(x[3::4]).reshape([16//n, n]).mean(axis=0)
+        mean = np.array(x[2::4]).reshape([16//n, n]).mean(axis=0) / (2**16)
+        mean_power = np.array(x[3::4]).reshape([16//n, n]).mean(axis=0) / (2**16)
         return clip_count, mean, mean_power
+
+    def adc_get_mismatch(self, n_snapshot=16):
+        """
+        Get the offset and gain mismatch between the two interleaved cores forming each polarization.
+
+        :param pol: Polarization to interrogate (0 or 1)
+        :type pol: int
+        :param n_snapshot: Number of snapshots to take. More gives better statistics, but takes longer
+        :type n_snapshot: int
+
+        :return: 2x2 array [[pol0 offset, pol0 gain], [pol1 offset, pol1 gain]]
+            offset: the number of ADC counts which core 1 is is offset by relative to core 0. E.g. if
+                offset=0.2, then the mean of all the core 1 ADC samples is 0.2 higher than the mean of all core 0 samples.
+            gain: the relative gain of core 1 vs core 0. E.g., if gain = 1.03, then the mean power of all core 1 samples
+                is 1.03 times the mean power of all core 1 samples.
+        :rtype: (float, float)
+        """
+        p0 = np.array([])
+        p1 = np.array([])
+        for i in range(n_snapshot):
+            p0_temp, p1_temp = self.adc_get_samples()
+            p0 = np.append(p0, p0_temp)
+            p1 = np.append(p1, p1_temp)
+        out = np.zeros([2,2])
+        out[0,0] = p0[1::2].mean() - p0[0::2].mean()
+        out[0,1] = p0[1::2].std() / p0[0::2].std()
+        out[1,0] = p1[1::2].mean() - p1[0::2].mean()
+        out[1,1] = p1[1::2].std() / p1[0::2].std()
+
+        return out
+
+    def _adc_get_ogp(self):
+        """
+        Get the offset, gain, and phase registers currently loaded to the ADC.
+
+        :return: 3-tuple of offset, gain, phase register settings.
+            Each entry is a np.array with 4 entries, one per ADC core
+        :rtype: (np.array, np.array, np.array)
+        """
+        import adc5g
+        offset = np.zeros(4)
+        gain = np.zeros(4)
+        phase = np.zeros(4)
+        for core in range(4):
+            offset[core] = adc5g.get_spi_offset(self.fpga, 0, core+1)
+            gain[core] = adc5g.get_spi_gain(self.fpga, 0, core+1)
+            phase[core] = adc5g.get_spi_phase(self.fpga, 0, core+1)
+        return offset, gain, phase
+
+    def _adc_set_ogp(self, offset, gain, adjust=True):#, phase):
+        """
+        Set the offset, gain, and phase registers of the ADC5G chip.
+        Floating values will be rounded to the nearest available ADC setting.
+        Set any of the input arguments to `None` to ignore this setting.
+
+        :param offset: list or array of 4 offset register values, one per core.
+            Units of offset are ADC LSBs (this function assumes the ADC is in 500mV p2p mode)
+        :type offset: list or np.array of integers
+        :param gain: list or array of 4 gain register values, one per core.
+            Gains are unitless fractions
+        :type gain: list or np.array of integers
+        :param adjust: If True, apply provided corrections as modifications to currently loaded settings.
+            If False, overwrite the current settings with those provided.
+        :type adjust: Bool
+
+        :return: offset, gain: The values actually loaded, in units of mV and percent
+        """
+        import adc5g
+        #print("offsets requested", offset)
+        #print("gains requested", gain)
+        if offset is not None:
+            mv_per_lsb = 500. / 256 # Assume the ADC is in its default 500mV range
+            offset = [x * mv_per_lsb for x in offset]
+        #print("offsets after rescaling", offset)
+
+        if gain is not None:
+            gain = [100*(1-x) for x in gain]
+        #print("gains after rescaling", gain)
+
+        if adjust:
+            # Get current gains
+            cur_offset, cur_gain, cur_phase = self._adc_get_ogp()
+            #print("Current offsets:", cur_offset)
+            #print("Current gain:", cur_gain)
+            if offset is not None:
+                offset = [offset[i] + cur_offset[i] for i in range(4)]
+            if gain is not None:
+                gain = [gain[i] + cur_gain[i] for i in range(4)]
+        #print("offsets after adjusting current settings", offset)
+        #print("gains after adjusting current settings", gain)
+
+
+        MAX_OFFSET = 50 #mv
+        MAX_GAIN = 18 #percent
+        for core in range(4):
+            if offset is not None:
+                if np.abs(offset[core]) > MAX_OFFSET:
+                    self.logger.warning("ADC offset %.2f was saturated to %.2f" % (offset[core], MAX_OFFSET))
+                    offset[core] = MAX_OFFSET
+                adc5g.set_spi_offset(self.fpga, 0, core+1, offset[core])
+            if gain is not None:
+                if np.abs(gain[core]) > MAX_GAIN:
+                    self.logger.warning("ADC gain %.2f was saturated to %.2f" % (gain[core], MAX_GAIN))
+                    gain[core] = MAX_GAIN
+                adc5g.set_spi_gain(self.fpga, 0, core+1, gain[core])
+            #if phase is not None:
+            #    adc5g.set_spi_phase(self.fpga, 0, core+1, phase[core])
+        return offset, gain
+
+    #def adc_balance(self, n_trial=3, reset=True):
+    #    """
+    #    Attempt to balance the ADC cores offset and gains, using
+    #    the current input signal.
+
+    #    :param n_trial: Number of iterations to compute the correction
+    #    :type n_trial: int
+    #    :param reset: If True, set all ADC settings to their startup values
+    #        before running in the balance algorithm.
+    #        If False, start from whatever settings are currently loaded.
+    #    :type reset: Bool
+
+    #    :return: offset, gain, phase
+    #        The currently loaded offset, gain, and phase setting. Each
+    #        is a vector with 4 elements - one per ADC core.
+    #    """
+    def adc_balance(self):
+        """
+        Attempt to balance the ADC cores offset and gains, using
+        the current input signal.
+
+        :return: offset, gain, phase
+            The currently loaded offset, gain, and phase setting. Each
+            is a vector with 4 elements - one per ADC core.
+        """
+        reset = True
+        n_trial = 1
+        if reset:
+            self._adc_set_ogp([0,0,0,0], [1,1,1,1], adjust=False)
+        c = self.adc_get_mismatch(n_snapshot=30)
+        self.logger.info("ADC Balance started with pol 0 offset/gain mismatch %.4f/%.4f" % (c[0,0], c[0,1]))
+        self.logger.info("ADC Balance started with pol 1 offset/gain mismatch %.4f/%.4f" % (c[1,0], c[1,1]))
+        for i in range(n_trial):
+            c = self.adc_get_mismatch(n_snapshot=30)
+            #print()
+            self.logger.info("ADC Balance %d with pol 0 offset/gain mismatch %.4f/%.4f" % (i, c[0,0], c[0,1]))
+            self.logger.info("ADC Balance %d with pol 1 offset/gain mismatch %.4f/%.4f" % (i, c[1,0], c[1,1]))
+            self._adc_set_ogp([0, -c[0,0], 0, -c[1,0]], [1, c[0,1], 1, c[1,1]], adjust=True)
+        c = self.adc_get_mismatch(n_snapshot=30)
+        self.logger.info("ADC Balance finished with pol 0 offset/gain mismatch %.4f/%.4f" % (c[0,0], c[0,1]))
+        self.logger.info("ADC Balance finished with pol 1 offset/gain mismatch %.4f/%.4f" % (c[1,0], c[1,1]))
+
+        return self._adc_get_ogp()
+
+
+
+
 
     def sync_wait_for_pps(self):
         """
@@ -896,8 +1053,7 @@ class AtaSnapFengine(object):
         # How many slots packetizer blocks do we need to use?
         # Lazily force data rate out of each interface to be the same
         n_packets = len(dup_dests)
-        assert n_packets % n_interfaces == 0, "Number of destination packets \
-        does not divide evenly betweed %d interfaces" % n_interfaces
+        assert n_packets % n_interfaces == 0, "Number of destination packets (%d) does not divide evenly betweed %d interfaces" % n(n_packets, _interfaces)
         available_blocks = packetizer_n_blocks * n_interfaces
         needed_blocks = n_chans // packetizer_chan_granularity
         spare_blocks = available_blocks - needed_blocks
