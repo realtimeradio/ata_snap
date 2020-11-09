@@ -324,7 +324,7 @@ class AtaSnapFengine(object):
         the current input signal.
 
         :return: offset, gain, phase
-            The currently loaded offset, gain, and phase setting. Each
+            The currently loaded offset and gain setting. Each
             is a vector with 4 elements - one per ADC core.
         """
         reset = True
@@ -344,11 +344,10 @@ class AtaSnapFengine(object):
         self.logger.info("ADC Balance finished with pol 0 offset/gain mismatch %.4f/%.4f" % (c[0,0], c[0,1]))
         self.logger.info("ADC Balance finished with pol 1 offset/gain mismatch %.4f/%.4f" % (c[1,0], c[1,1]))
 
-        return self._adc_get_ogp()
-
-
-
-
+        # Return what we have written rather than what is read back, because the readback
+        # command doesn't seem to be working (or is related to the set gains in a non-trivial way)
+        return [[0, -c[0,0], 0, -c[1,0]], [1, c[0,1], 1, c[1,1]]]
+        #return self._adc_get_ogp()
 
     def sync_wait_for_pps(self):
         """
@@ -921,6 +920,13 @@ class AtaSnapFengine(object):
             `start_chan` should be a multiple of self.n_chans_per_block (4)
             `n_chans` should be a multiple of self.n_chans_per_block (4)
             `interface` should be <= self.n_interfaces
+
+        :return: A dictionary, keyed by destination IP, with values corresponding to the
+            ranges of channels destined for this IP.
+            Eg, if sending 512 channels over two destinations
+            '10.0.0.10' and '10.0.0.11', this function might return
+            {'10.0.0.10': [0,1,..,255], '10.0.0.11': [256,257,..,511]}
+        :rtype: dict
         """
 
         # Each 10GbE core in the design has its own packetizer.
@@ -1119,6 +1125,15 @@ class AtaSnapFengine(object):
             if chan_reorder_map[i] == -1:
                 chan_reorder_map[i] = possible_chans.pop(0)
         self._reorder_channels(chan_reorder_map)
+
+        # Return a dictionary, keyed by destination address, where each entry is the range of channels being
+        # send to that address.
+        rv = {}
+        for dn, d in enumerate(dests):
+            rv[d] = list(range(start_chan + dn*n_chans_per_destination,
+                          start_chan + (dn+1)*n_chans_per_destination))
+        return rv
+        
 
     def _populate_headers(self, interface, headers):
         h_bytestr = b''
