@@ -102,6 +102,7 @@ for i in range(2):
     ip = config["interfaces"][feng.fpga.host][i]
     mac = config["arp"][ip]
     port = 10000
+    eth = feng.fpga.gbes['eth%i_core' %i]
     eth.configure_core(mac, ip, port)
 
 if args.eth_spec:
