@@ -223,9 +223,11 @@ class AtaSnapFengine(object):
 
         :return: 2x2 array [[pol0 offset, pol0 gain], [pol1 offset, pol1 gain]]
             offset: the number of ADC counts which core 1 is is offset by relative to core 0. E.g. if
-                offset=0.2, then the mean of all the core 1 ADC samples is 0.2 higher than the mean of all core 0 samples.
+            offset=0.2, then the mean of all the core 1 ADC samples is 0.2 higher than the mean of all core 0 samples.
+
             gain: the relative gain of core 1 vs core 0. E.g., if gain = 1.03, then the mean power of all core 1 samples
-                is 1.03 times the mean power of all core 1 samples.
+            is 1.03 times the mean power of all core 1 samples.
+
         :rtype: (float, float)
         """
         p0 = np.array([])
@@ -592,14 +594,17 @@ class AtaSnapFengine(object):
             If the array has length self.n_chans_f then element [self.n_coeff_shared*i] is the coefficient
             which will be  applied to channels i through i+self.n_coeff_shared-1.
             Coefficients are quantized to UFix32_5 precision.
+
         :type coeffs: float, or list / numpy.ndarray
+
         :raises AssertionError: If an array of coefficients is provided with an invalid size,
             if any coefficients are negative, or if pol is a non-allowed value
 
         :return: 2-tuple coeffs, bin_pt.
             coeffs: An array of self.n_chans_f indicating the integer coefficients loaded.
             bin_pt: position of binary point with which firmware interprets coefficients.
-                   Eg: bin_pt=5 means that coefficients are interpreted as coeffs / 2^5
+            Eg: bin_pt=5 means that coefficients are interpreted as coeffs / 2^5
+
         :rtype: numpy.ndarray, int
         """
         COEFF_BITS = 32 # Bits per coefficient
@@ -650,8 +655,9 @@ class AtaSnapFengine(object):
         :return: If return_float: coeffs; If not return_float: 2-tuple coeffs, bin_pt.
             coeffs: An array of self.n_chans_f indicating the coefficients loaded.
             bin_pt: If return_float=False, this is the position of binary point
-                with which firmware interprets coefficients.
-                Eg: bin_pt=5 means that coefficients are interpreted as coeffs / 2^5
+            with which firmware interprets coefficients.
+            Eg: bin_pt=5 means that coefficients are interpreted as coeffs / 2^5
+
         :rtype: numpy.ndarray or numpy.ndarray, int
         """
 
@@ -1218,45 +1224,45 @@ class AtaSnapFengine(object):
         self.fpga.write('packetizer%d_header' % interface, h_bytestr)
         
 
-    def get_channel_assignments(self):
-        """
-        Get information about the channels currently being output.
+    #def get_channel_assignments(self):
+    #    """
+    #    Get information about the channels currently being output.
 
-        :return: A list of information about channel output blocks. Each list entry
-            is a dictionary with the following fields:
-                'interface' : An integer indicating the physical port number from which this
-                              block of channels is being transmitted.
-                'ant'       : An integer indicating the antenna number (according to the
-                              packet headers) associated with this channel block.
-                'header_chan' : An integer indicating the channel number (according to the
-                                packet headers) associated with this channel block).
-                'dest_ip'   : A string indicating the destination IP address for this
-                              block of packets.
-                'chans'     : A list of integer channel numbers which are present in this
-                              block of channels.
-        """
-        PARALLEL_CHANS = 4
-        new_chan_map = list(struct.unpack('>%dH' % (self.n_chans_f // PARALLEL_CHANS), self.fpga.read('chan_reorder_reorder3_map1', 2*(self.n_chans_f//PARALLEL_CHANS))))
-        n_slots = self.n_interfaces * self.n_chans_out // self.n_chans_per_packet
-        outputs = []
-        for slot in range(n_slots):
-            chans_p = new_chan_map[slot * (self.n_chans_per_packet // PARALLEL_CHANS) : (slot+1) * (self.n_chans_per_packet // PARALLEL_CHANS)]
-            chans = []
-            for c in chans_p:
-                chans += list(range(PARALLEL_CHANS * c, PARALLEL_CHANS * (c+1)))
-            print(chans)
-            interface = slot % self.n_interfaces
-            dest_ip = _int_to_ip(self.fpga.read_uint('packetizer%d_ips' % interface, word_offset=slot//self.n_interfaces))
-            ant = self.fpga.read_uint('packetizer%d_ants' % interface, word_offset=slot//self.n_interfaces)
-            header_chan = self.fpga.read_uint('packetizer%d_chans' % interface, word_offset=slot//self.n_interfaces)
-            if dest_ip == "0.0.0.0":
-                # Slot isn't going anywhere
-                continue
-            else:
-                outputs += [{'chans':chans, 'interface':interface, 'dest_ip':dest_ip, 'ant':ant, 'header_chan':header_chan}]
-                if header_chan != chans[0]:
-                    self.logger.warning("Header channel %d doesn't seem to match actual channel range, which starts at %d" % (header_chan, chans[0]))
-        return outputs
+    #    :return: A list of information about channel output blocks. Each list entry
+    #        is a dictionary with the following fields:
+    #        'interface' : An integer indicating the physical port number from which this
+    #                      block of channels is being transmitted.
+    #        'ant'       : An integer indicating the antenna number (according to the
+    #                      packet headers) associated with this channel block.
+    #        'header_chan' : An integer indicating the channel number (according to the
+    #                        packet headers) associated with this channel block).
+    #        'dest_ip'   : A string indicating the destination IP address for this
+    #                      block of packets.
+    #        'chans'     : A list of integer channel numbers which are present in this
+    #                      block of channels.
+    #    """
+    #    PARALLEL_CHANS = 4
+    #    new_chan_map = list(struct.unpack('>%dH' % (self.n_chans_f // PARALLEL_CHANS), self.fpga.read('chan_reorder_reorder3_map1', 2*(self.n_chans_f//PARALLEL_CHANS))))
+    #    n_slots = self.n_interfaces * self.n_chans_out // self.n_chans_per_packet
+    #    outputs = []
+    #    for slot in range(n_slots):
+    #        chans_p = new_chan_map[slot * (self.n_chans_per_packet // PARALLEL_CHANS) : (slot+1) * (self.n_chans_per_packet // PARALLEL_CHANS)]
+    #        chans = []
+    #        for c in chans_p:
+    #            chans += list(range(PARALLEL_CHANS * c, PARALLEL_CHANS * (c+1)))
+    #        print(chans)
+    #        interface = slot % self.n_interfaces
+    #        dest_ip = _int_to_ip(self.fpga.read_uint('packetizer%d_ips' % interface, word_offset=slot//self.n_interfaces))
+    #        ant = self.fpga.read_uint('packetizer%d_ants' % interface, word_offset=slot//self.n_interfaces)
+    #        header_chan = self.fpga.read_uint('packetizer%d_chans' % interface, word_offset=slot//self.n_interfaces)
+    #        if dest_ip == "0.0.0.0":
+    #            # Slot isn't going anywhere
+    #            continue
+    #        else:
+    #            outputs += [{'chans':chans, 'interface':interface, 'dest_ip':dest_ip, 'ant':ant, 'header_chan':header_chan}]
+    #            if header_chan != chans[0]:
+    #                self.logger.warning("Header channel %d doesn't seem to match actual channel range, which starts at %d" % (header_chan, chans[0]))
+    #    return outputs
 
     def _assign_chans(self, channel_range, start_index):
         """
