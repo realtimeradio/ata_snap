@@ -138,10 +138,10 @@ class AtaSnapFengine(object):
         else:
             self.fpga.upload_to_ram_and_program(fpgfile)
         self.fpga.get_system_information(fpgfile)
-        self.sync_select_input(self._pps_source)
+        self.sync_select_input(self.pps_source)
         if init_adc:
             self.adc_initialize()
-        self.write_int("corr_feng_id", self.feng_id)
+        self.fpga.write_int("corr_feng_id", self.feng_id)
 
     def adc_initialize(self):
         """
