@@ -41,6 +41,7 @@ def silence_tftpy():
         l.setLevel(logging.CRITICAL)
 
 TGE_N_SAMPLES_PER_WORD = 8 # 8 1-byte words per 64-bit 10GbE input. TODO: what about 8-bit mode?
+MAX_SAMPLE_DELAY = 16384 - 1
 
 class AtaSnapFengine(object):
     """
@@ -416,6 +417,35 @@ class AtaSnapFengine(object):
                 time.sleep(wait_time)
             self.sync_manual_trigger()
         return sync_time
+
+    def set_delay(self, pol, delay):
+        """
+        Set the delay, in units of ADC clock cycles, of a pipeline input.
+
+        :param pol: Polarization to read (0 or 1)
+        :type pol: int
+        :param delay: Delay to apply to this polarization
+        :type delay: int
+        """
+
+        assert delay <= MAX_SAMPLE_DELAY, "Delay must be between 0 and %d" % (MAX_SAMPLE_DATA - 1)
+        self.write_int('delay_pol%d' % pol, delay)
+
+    def get_delay(self, pol):
+        """
+        Get the delay, in units of ADC clock cycles, of a pipeline input.
+
+        :param pol: Polarization to read (0 or 1)
+        :type pol: int
+
+        :return: delay, in units of ADC clock cycles
+        :rtype: int
+        """
+
+        return self.read_uint('delay_pol%d' % pol)
+
+        assert delay <= MAX_SAMPLE_DELAY, "Delay must be between 0 and %d" % (MAX_SAMPLE_DATA - 1)
+        self.write_int('delay_pol%d' % pol, delay)
 
     def sync_manual_trigger(self):
         """
