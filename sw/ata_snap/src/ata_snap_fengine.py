@@ -444,9 +444,6 @@ class AtaSnapFengine(object):
 
         return self.read_uint('delay_pol%d' % pol)
 
-        assert delay <= MAX_SAMPLE_DELAY, "Delay must be between 0 and %d" % (MAX_SAMPLE_DATA - 1)
-        self.write_int('delay_pol%d' % pol, delay)
-
     def sync_manual_trigger(self):
         """
         Issue a sync using the F-engine's built-in software trigger.
