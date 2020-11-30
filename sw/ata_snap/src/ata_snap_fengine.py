@@ -782,7 +782,7 @@ class AtaSnapFengine(object):
 
         assert pol in [0, 1]
 
-        coeffs = np.array(struct.unpack('>I' % n_coeffs, self.fpga.read('eq_pol%d_coeffs' % pol, n_coeffs*4)))
+        coeffs = np.array(struct.unpack('>%dI' % n_coeffs, self.fpga.read('eq_pol%d_coeffs' % pol, n_coeffs*4)))
         if return_float:
             return coeffs / 2.0**COEFF_BP
         else:
