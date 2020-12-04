@@ -595,7 +595,7 @@ class AtaSnapFengine(object):
         """
         return bool(self.fpga.read_uint('pfb_fft_of'))
 
-    def quant_spec_read(self, pol=0):
+    def quant_spec_read(self, pol=0, flush=True):
         """
         Read a single accumulated spectrum of the 4-bit quantized data
 
@@ -606,6 +606,10 @@ class AtaSnapFengine(object):
 
         :param pol: Polarization to read
         :type pol: int
+        :param flush: If True, throw away one integration prior to getting data.
+                      This can be desirable if (eg) EQ coefficients have been recently
+                      changed.
+        :type flush: Bool
         :raises AssertionError: if pol is not 0 or 1
         :return: A numpy array containing the polarization's power spectrum
         :rtype: numpy.array
@@ -617,9 +621,45 @@ class AtaSnapFengine(object):
 
         assert pol in [0,1]
         self.fpga.write_int("corr_quant_vacc_ss_sel", pol)
+        if flush:
+            self.fpga.snapshots.corr_quant_vacc_ss_ss0.read_raw()
         d0, t0 = self.fpga.snapshots.corr_quant_vacc_ss_ss0.read_raw()
-        d0i = np.array(struct.unpack(">%di" % (d0["length"] // 4), d0["data"]))
+        d0i = np.array(struct.unpack(">%dI" % (d0["length"] // 4), d0["data"]))
         return d0i
+
+    def eq_get_rms_per_chan(self, pol):
+        """
+        Get the per channel "rms" of a polarization, based on the square-root of the
+        average power spectrum, after some basic filtering to remove
+        values < 0.2 times the median (assumed to be outside the passband) and
+        values > 5 times the median (assumed to be RFI)
+
+        :param pol: Polarization to equalize.
+        :type pol: int
+
+        :return: rms: np.array with length self.n_chans_f
+        :rtype: float
+        """
+        acclen = self.get_accumulation_length()
+        # get a spectrum. The mean spectral power is ~ variance(real) + variance(imag)
+        spec = self.quant_spec_read(pol, flush=True) / float(acclen)
+
+        # lop off bits of the spectrum outside the passband with some rudimentary filtering
+        complete_median = np.median(spec)
+        spec_bandpass = spec[spec > 0.2*complete_median]
+        if spec_bandpass.shape[0] < 100:
+            self.logger.warning("Too few samples > 0.2*median to continue")
+            return 0
+        # lop off RFI
+        bandpass_median = np.median(spec_bandpass)
+        spec_bandpass = spec_bandpass[spec_bandpass < 5*bandpass_median]
+        if spec_bandpass.shape[0] < 100:
+            self.logger.warning("Too few samples < 5*median to continue")
+            return 255
+        # Assume variances of real/imag are the same
+        ri_variance = np.mean(spec_bandpass) / 2.
+        ri_rms = np.sqrt(ri_variance)
+        return ri_rms
 
     def eq_get_rms(self, pol):
         """
@@ -636,7 +676,7 @@ class AtaSnapFengine(object):
         """
         acclen = self.get_accumulation_length()
         # get a spectrum. The mean spectral power is ~ variance(real) + variance(imag)
-        spec = self.quant_spec_read(pol) / float(acclen)
+        spec = self.quant_spec_read(pol, flush=True) / float(acclen)
         # lop off bits of the spectrum outside the passband with some rudimentary filtering
         complete_median = np.median(spec)
         spec_bandpass = spec[spec > 0.2*complete_median]
@@ -674,17 +714,21 @@ class AtaSnapFengine(object):
         """
         if start_coeff is not None:
             self.eq_load_coeffs(pol, start_coeff)
-
+        
+        acclen = self.get_accumulation_length()
         for i in range(iterations):
             current_eq_coeffs = self.eq_read_coeffs(pol, return_float=True)
-            rms = self.eq_get_rms(pol)
-            if rms == 0:
-                new_coeffs = current_eq_coeffs * 10
-            elif rms >= 255:
-                new_coeffs = current_eq_coeffs * 0.1
-            else:
-                new_coeffs = current_eq_coeffs * target_rms / rms
-            self.eq_load_coeffs(pol, new_coeffs)
+            new_eq_coeffs = np.zeros_like(current_eq_coeffs)
+            self.logger.info("Current EQ coefficients: %s" % current_eq_coeffs)
+            rms = np.sqrt(self.quant_spec_read(pol, flush=True) / float(acclen) / 2.0)
+            print(self.quant_spec_read(pol, flush=True))
+            for cn in range(self.n_chans_f):
+                if rms[cn] == 0:
+                    new_eq_coeffs[cn] = current_eq_coeffs[cn] * 10 + 1./2**5
+                else:
+                    new_eq_coeffs[cn] = current_eq_coeffs[cn] * target_rms / rms[cn]
+            self.logger.info("New EQ coeffients: %s" % new_eq_coeffs)
+            self.eq_load_coeffs(pol, new_eq_coeffs)
 
     def eq_load_coeffs(self, pol, coeffs):
         """
@@ -743,8 +787,8 @@ class AtaSnapFengine(object):
         for coeff in coeffs:
             assert coeff >= 0
         # Manipulate scaling  so that we can write an integer which
-        # will be interpreted as a UFix16_5 number.
-        coeffs = [min(2**COEFF_BITS - 1, int(c*COEFF_BP)) for c in coeffs] # scale up by binary point and saturate
+        # will be interpreted as a UFix number.
+        coeffs = [min(2**COEFF_BITS - 1, int(c*(2**COEFF_BP))) for c in coeffs] # scale up by binary point and saturate
         if COEFF_BITS == 8:
             coeffs_str = struct.pack('>%dB'%n_coeffs, *coeffs)
         elif COEFF_BITS == 16:
@@ -782,11 +826,11 @@ class AtaSnapFengine(object):
 
         assert pol in [0, 1]
 
-        coeffs = np.array(struct.unpack('>%dI' % n_coeffs, self.fpga.read('eq_pol%d_coeffs' % pol, n_coeffs*4)))
+        coeffs = np.array(struct.unpack('>%dI' % n_coeffs, self.fpga.read('eq_pol%d_coeffs' % pol, n_coeffs*4))).repeat(self.n_coeff_shared)
         if return_float:
             return coeffs / 2.0**COEFF_BP
         else:
-            return coeefs, COEFF_BP
+            return coeffs, COEFF_BP
         
 
     def eq_load_test_vectors(self, pol, tv):
@@ -1223,6 +1267,8 @@ class AtaSnapFengine(object):
         # Can't send more than all the channels!
         assert start_chan + n_chans <= self.n_chans_f
 
+        self.logger.info('Start channel: %d' % start_chan)
+        self.logger.info('Number of channels to send: %d' % n_chans)
         self.logger.info('Number of interfaces to be used: %d' % n_interfaces)
         self.logger.info('Number of interfaces available: %d' % self.n_interfaces)
 
@@ -1283,17 +1329,18 @@ class AtaSnapFengine(object):
         interface = 0
         slot = [0 for _ in range(n_interfaces)]
         input_chan_id = 0
+        slot_start_chan = start_chan
         for p in range(n_packets):
             for s in range(n_slots_per_packet):
                 headers[interface][slot[interface]]['first'] = s==0
                 headers[interface][slot[interface]]['valid'] = True
                 headers[interface][slot[interface]]['last'] = s==(n_slots_per_packet-1)
                 headers[interface][slot[interface]]['dest'] = dup_dests[p]
-                headers[interface][slot[interface]]['chans'] = range(start_chan, start_chan + packetizer_chan_granularity)
+                headers[interface][slot[interface]]['chans'] = range(slot_start_chan, slot_start_chan + packetizer_chan_granularity)
                 input_chan_id = slot[interface] * packetizer_chan_granularity
                 #print(p, s, input_chan_id)
-                chan_reorder_map[input_chan_id : input_chan_id + packetizer_chan_granularity] = range(start_chan, start_chan + packetizer_chan_granularity)
-                start_chan += packetizer_chan_granularity
+                chan_reorder_map[input_chan_id : input_chan_id + packetizer_chan_granularity] = range(slot_start_chan, slot_start_chan + packetizer_chan_granularity)
+                slot_start_chan += packetizer_chan_granularity
                 slot[interface] += 1
             # If we are in 4-bit mode, the data going in to both interfaces is the same,
             # so the next interface should start at the slot after the interface we have just used
