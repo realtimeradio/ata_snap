@@ -58,6 +58,10 @@ class AtaSnapFengine(object):
         casperfpga.TapcpTransport (if communicating over 10GbE) or
         casperfpga.KatcpTransport (if communicating via a Raspberry Pi)
     :type transport: casperfpga.Transport
+    :param use_rpi: If set, override the ``transport`` parameter.
+        If True, use the KatcpTransport to talk to a SNAP's
+        Raspberry Pi. If False, use the TapcpTransport.
+    :type use_rpi: Bool
     """
     n_pols = 2 # Number of polarization the F-engine processes
     pps_source = "board" # After programming set the PPS source to the front panel input
@@ -68,10 +72,15 @@ class AtaSnapFengine(object):
     packetizer_granularity = 2**5 # Number of 64-bit words ber packetizer step
     n_coeff_shared = 4 # Number of adjacent frequency channels sharing an EQ coefficient
 
-    def __init__(self, host, feng_id=0, transport=casperfpga.TapcpTransport):
+    def __init__(self, host, feng_id=0, transport=casperfpga.TapcpTransport, use_rpi=None):
         """
         Constructor method
         """
+        if use_rpi is not None:
+            if use_rpi:
+                transport = casperfpga.KatcpTransport
+            else:
+                transport = casperfpga.TapcpTransport
         self.fpga = casperfpga.CasperFpga(host, transport=transport)
         silence_tftpy()
         self.host = host
