@@ -521,10 +521,10 @@ class AtaSnapFengine(object):
         if period % (2*self.n_chans_f):
             self.logger.warning("Sync period %d is not compatible with FFT length %d" % (period, 2*self.n_chans_f))
             raise ValueError("Sync period %d is not compatible with FFT length %d" % (period, 2*self.n_chans_f))
-        if period % 6:
+        if period % (5*(self.n_chans_f // 4)):
             self.logger.warning("Sync period %d is not compatible with voltage output reordering." % (period))
-            self.logger.warning("Sync period should be a multiple of 6")
-            raise ValueError("Sync period should be a multiple of 6")
+            self.logger.warning("Sync period should be a multiple of 5 * n_chans_f/4")
+            raise ValueError("Sync period should be a multiple of 5 * n_chans_f/4")
         self.fpga.write_int('timebase_sync_period', period)
 
     def _sync_get_period(self):
@@ -545,6 +545,10 @@ class AtaSnapFengine(object):
         :type acclen: int
         """
         self.logger.info('Setting accumulation length to %d spectra' % acclen)
+        if acclen % 8:
+            self.logger.warning("Accumulation length should be a multiple of 8")
+        if acclen % 5:
+            self.logger.warning("Accumulation length should be a multiple of 5")
         self._sync_set_period(acclen * self.n_chans_f * 2 // 8) # *2 for real-FFT; /8 for ADC demux
 
     def get_accumulation_length(self):
