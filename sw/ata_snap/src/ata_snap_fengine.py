@@ -608,7 +608,7 @@ class AtaSnapFengine(object):
         """
         return bool(self.fpga.read_uint('pfb_fft_of'))
 
-    def quant_spec_read(self, pol=0, flush=True):
+    def quant_spec_read(self, pol=0, flush=True, normalize=False):
         """
         Read a single accumulated spectrum of the 4-bit quantized data
 
@@ -623,91 +623,104 @@ class AtaSnapFengine(object):
                       This can be desirable if (eg) EQ coefficients have been recently
                       changed.
         :type flush: Bool
+        :param normalize: If True, divide out the accumulation length and firmware
+            scaling, returning floating point values. Otherwise, return integers
+            and leave these factors present.
+        :type normalize: Bool
+
         :raises AssertionError: if pol is not 0 or 1
         :return: A numpy array containing the polarization's power spectrum
         :rtype: numpy.array
         """
+        SCALE = 2**14 # Vacc number representation
         if len(self.fpga.snapshots) == 0:
             raise RuntimeError("Please run AtaSnapFengine.program(...) or "
                     "AtaSnapFengine.fpga.get_system_information(...) with the "
                     "loaded bitstream prior to trying to snapshot data")
 
         assert pol in [0,1]
+        # Get the accumulation length if we need it for scaling
+        if normalize:
+            acc_len = self.get_accumulation_length()
+
         self.fpga.write_int("corr_quant_vacc_ss_sel", pol)
         if flush:
             self.fpga.snapshots.corr_quant_vacc_ss_ss0.read_raw()
         d0, t0 = self.fpga.snapshots.corr_quant_vacc_ss_ss0.read_raw()
         d0i = np.array(struct.unpack(">%dI" % (d0["length"] // 4), d0["data"]))
+        if normalize:
+            d0i = d0i / float(SCALE * acc_len)
         return d0i
 
-    def eq_get_rms_per_chan(self, pol):
+    def _filter_spectrum(self, x, medfil_ksize=401, conv_ksize=100):
         """
-        Get the per channel "rms" of a polarization, based on the square-root of the
-        average power spectrum, after some basic filtering to remove
-        values < 0.2 times the median (assumed to be outside the passband) and
-        values > 5 times the median (assumed to be RFI)
+        Filter the input x (intended to be a spectrum with RFI) first applying
+        a median filter to remove interference, and then applying a boxcar
+        smoothing filter.
 
-        :param pol: Polarization to equalize.
-        :type pol: int
+        This method requires the scipy signals library
 
-        :return: rms: np.array with length self.n_chans_f
-        :rtype: float
+        :param x: Input signal vector to be filtered
+        :type x: numpy.array
+        :param medfil_ksize: Size of median filter kernel. Should be odd.
+        :type medfil_ksize: int
+        :param conv_ksize: Convolution kernel size.
+        :type conv_ksize: int
+
+        :return: Filtered and smoothed input vector
+        :rtype: numpy.array
         """
-        acclen = self.get_accumulation_length()
-        # get a spectrum. The mean spectral power is ~ variance(real) + variance(imag)
-        spec = self.quant_spec_read(pol, flush=True) / float(acclen)
+        import scipy.signal
+        x_mfilt = scipy.signal.medfilt(x, medfil_ksize)
+        x_conv = scipy.signal.convolve(x_mfilt, np.ones(conv_ksize), mode='same') / float(conv_ksize)
+        return x_conv
 
-        # lop off bits of the spectrum outside the passband with some rudimentary filtering
-        complete_median = np.median(spec)
-        spec_bandpass = spec[spec > 0.2*complete_median]
-        if spec_bandpass.shape[0] < 100:
-            self.logger.warning("Too few samples > 0.2*median to continue")
-            return 0
-        # lop off RFI
-        bandpass_median = np.median(spec_bandpass)
-        spec_bandpass = spec_bandpass[spec_bandpass < 5*bandpass_median]
-        if spec_bandpass.shape[0] < 100:
-            self.logger.warning("Too few samples < 5*median to continue")
-            return 255
-        # Assume variances of real/imag are the same
-        ri_variance = np.mean(spec_bandpass) / 2.
-        ri_rms = np.sqrt(ri_variance)
-        return ri_rms
-
-    def eq_get_rms(self, pol):
+    def eq_compute_coeffs(self, target_rms=0.5, medfil_ksize=401, conv_ksize=100, acc_len=50000):
         """
-        Get the "rms" of a polarization, based on the square-root of the
-        average power spectrum, after some basic filtering to remove
-        values < 0.2 times the median (assumed to be outside the passband) and
-        values > 5 times the median (assumed to be RFI)
+        Get appropriate EQ coefficients to scale FFT output for an appropriate post-quantization
+        power target. Do this by grabbing a full bit-precision spectrum, filtering out RFI and smoothing,
+        and then computing the scaling required to reach a target power level.
 
-        :param pol: Polarization to equalize.
-        :type pol: int
+        :param target_rms: The target voltage RMS. This should be specified relative to signed
+            data normalized to the range +/-1. I.e., a target_rms of 1./2**7
+            represents an RMS of one least-significant bit after quantizing to 8-bits.
+            A target_rms of 1./2**3 represents one least-significant bit after quantizing
+            to 4-bits.
+        :type target_rms: float
+        :param medfil_ksize: Size of median filter kernel to use for RFI removal. Should be odd.
+        :type medfil_ksize: int
+        :param conv_ksize: Convolution kernel size to use for bandpass smoothing.
+        :type conv_ksize: int
+        :param acc_len: If specified, use this accumulation length for the computation.
+            Accumulation length should be sufficiently long to obtain good autocorrelation
+            SNR. After the EQ coeffients are obtained, the accumulation length the firmware
+            was using before this function was invoked is reloaded.
+        :type acc_len: int
 
-        :return: rms
-        :rtype: float
+        :return: x_coeffs, y_coeffs: A tuple of coefficients. Each is a numpy array of
+            floating-point values.
+        :rtype: numpy.array, numpy.array
         """
-        acclen = self.get_accumulation_length()
-        # get a spectrum. The mean spectral power is ~ variance(real) + variance(imag)
-        spec = self.quant_spec_read(pol, flush=True) / float(acclen)
-        # lop off bits of the spectrum outside the passband with some rudimentary filtering
-        complete_median = np.median(spec)
-        spec_bandpass = spec[spec > 0.2*complete_median]
-        if spec_bandpass.shape[0] < 100:
-            self.logger.warning("Too few samples > 0.2*median to continue")
-            return 0
-        # lop off RFI
-        bandpass_median = np.median(spec_bandpass)
-        spec_bandpass = spec_bandpass[spec_bandpass < 5*bandpass_median]
-        if spec_bandpass.shape[0] < 100:
-            self.logger.warning("Too few samples < 5*median to continue")
-            return 255
-        # Assume variances of real/imag are the same
-        ri_variance = np.mean(spec_bandpass) / 2.
-        ri_rms = np.sqrt(ri_variance)
-        return ri_rms
 
-    def eq_balance(self, pol, target_rms=1.0, start_coeff=1000, iterations=5):
+        if acc_len is not None:
+            old_acc_len = self.get_accumulation_length()
+            self.set_accumulation_length(acc_len)
+        xx, yy = self.spec_read(mode='auto', flush=True, normalize=True)
+        xx = self._filter_spectrum(xx, medfil_ksize=medfil_ksize, conv_ksize=conv_ksize)
+        yy = self._filter_spectrum(yy, medfil_ksize=medfil_ksize, conv_ksize=conv_ksize)
+        # Generate coefficients by dividing by 2 (to get the power contribution
+        # of one of the real/imag parts, and sqrt-ing to get to voltage
+        # The resulting coefficients will make the voltage RMS 1
+        x_coeff = 1. / np.sqrt(xx / 2.)
+        y_coeff = 1. / np.sqrt(yy / 2.)
+        # Divide down the coefficients to get the a scale of 1 least-significant bit
+        x_coeff *= float(target_rms)
+        y_coeff *= float(target_rms)
+        if acc_len is not None:
+            self.set_accumulation_length(old_acc_len)
+        return x_coeff, y_coeff
+
+    def eq_balance(self, pol, target_rms=2.**-3, cutoff=2., medfil_ksize=401, conv_ksize=50):
         """
         Tweak the EQ coefficients for a polarization to target a particular post-EQ
         RMS.
@@ -721,27 +734,30 @@ class AtaSnapFengine(object):
             This parameter is always relative to 8-bit values. So, for 4-bit quanitization,
             target_rms = 2**4 will target an RMS of one 4-bit LSB.
         :type target_rms: float
-        :param start_coeff: If not None, start routine by loading this coefficient for all channels.
-            If None, start with whatever EQ coefficients are currently loaded.
-        :type start_coeff: float
+        :param cutoff: The scale, relative to the mean coefficient, at which coeffiecients
+            are saturated. For example, if the mean coefficient is 1000, and ``cutoff`` is 2,
+            coefficients will saturated at a value of 2000. This allows the bandpass
+            to still be visible in the equalized data.
+        :type cutoff: float
+        :param medfil_ksize: Size of median filter kernel to use for RFI removal. Should be odd.
+        :type medfil_ksize: int
+        :param conv_ksize: Convolution kernel size to use for bandpass smoothing.
+        :type conv_ksize: int
+
+        :return: The loaded coefficients as read back. Note that these will be slightly
+            different to the loaded coefficients since they will have been saturated
+            and quantized to the specifications of the firmware.
+        :rtype: Integer coefficients as returned by ``eq_read_coeffs``
         """
-        if start_coeff is not None:
-            self.eq_load_coeffs(pol, start_coeff)
-        
-        acclen = self.get_accumulation_length()
-        for i in range(iterations):
-            current_eq_coeffs = self.eq_read_coeffs(pol, return_float=True)
-            new_eq_coeffs = np.zeros_like(current_eq_coeffs)
-            self.logger.info("Current EQ coefficients: %s" % current_eq_coeffs)
-            rms = np.sqrt(self.quant_spec_read(pol, flush=True) / float(acclen) / 2.0)
-            print(self.quant_spec_read(pol, flush=True))
-            for cn in range(self.n_chans_f):
-                if rms[cn] == 0:
-                    new_eq_coeffs[cn] = current_eq_coeffs[cn] * 10 + 1./2**5
-                else:
-                    new_eq_coeffs[cn] = current_eq_coeffs[cn] * target_rms / rms[cn]
-            self.logger.info("New EQ coeffients: %s" % new_eq_coeffs)
-            self.eq_load_coeffs(pol, new_eq_coeffs)
+        assert pol in [0, 1], "Polarization must be 0 or 1"
+        xc, yc = self.eq_compute_coeffs(target_rms=target_rms, medfil_ksize=medfil_ksize, conv_ksize=conv_ksize)
+        xc_mean = xc.mean()
+        yc_mean = yc.mean()
+        xc[xc>cutoff*xc_mean] = cutoff*xc_mean
+        yc[yc>cutoff*yc_mean] = cutoff*yc_mean
+        coeffs = [xc, yc]
+        self.eq_load_coeffs(pol, coeffs[pol])
+        return self.eq_read_coeffs(pol)
 
     def eq_load_coeffs(self, pol, coeffs):
         """
@@ -904,7 +920,7 @@ class AtaSnapFengine(object):
             self.logger.info("Turning OFF Spectrometer test-vectors")
         self.fpga.write_int('spec_tvg_tvg_en', int(enable))
 
-    def spec_read(self, mode="auto"):
+    def spec_read(self, mode="auto", flush=False, normalize=False):
         """
         Read a single accumulated spectrum.
 
@@ -916,6 +932,15 @@ class AtaSnapFengine(object):
         :param mode: "auto" to read an autocorrelation for each of the X and Y pols.
             "cross" to read a cross-correlation of Xconj(Y).
         :type mode: str:
+        :param flush: If True, throw away one integration prior to getting data.
+                      This can be desirable if (eg) EQ coefficients have been recently
+                      changed.
+        :type flush: Bool
+        :param normalize: If True, divide out the accumulation length and firmware
+            scaling, returning floating point values. Otherwise, return integers
+            and leave these factors present.
+        :type normalize: Bool
+
         :raises AssertionError: if mode is not "auto" or "cross"
         :return: If mode="auto": A tuple of two numpy arrays, xx, yy, containing
             a power spectrum from the X and Y polarizations.
@@ -923,6 +948,7 @@ class AtaSnapFengine(object):
             spectrum of Xconj(Y).
         :rtype: numpy.array
         """
+        SCALE = 2**48 # Vacc number representation
         if len(self.fpga.snapshots) == 0:
             raise RuntimeError("Please run AtaSnapFengine.program(...) or "
                     "AtaSnapFengine.fpga.get_system_information(...) with the "
@@ -933,6 +959,13 @@ class AtaSnapFengine(object):
             self.fpga.write_int("corr_vacc_ss_sel", 0)
         else:
             self.fpga.write_int("corr_vacc_ss_sel", 1)
+
+        # Get the accumulation length if we need it for scaling
+        if normalize:
+            acc_len = self.get_accumulation_length()
+
+        if flush:
+            self.fpga.snapshots.corr_vacc_ss_ss0.read_raw()
 
         self.fpga.snapshots.corr_vacc_ss_ss0.arm() # This arms all RAMs
         d0, t0 = self.fpga.snapshots.corr_vacc_ss_ss0.read_raw(arm=False)
@@ -963,6 +996,9 @@ class AtaSnapFengine(object):
                 yy[4*i+1] = yy_1[i]
                 yy[4*i+2] = yy_2[i]
                 yy[4*i+3] = yy_3[i]
+            if normalize:
+                xx = xx / float(SCALE * acc_len)
+                yy = yy / float(SCALE * acc_len)
             return xx, yy
         elif mode == "cross":
             xy_0_r = d0i[0::2]
@@ -979,6 +1015,8 @@ class AtaSnapFengine(object):
                 xy[4*i+1] = xy_1_r[i] + 1j*xy_1_i[i]
                 xy[4*i+2] = xy_2_r[i] + 1j*xy_2_i[i]
                 xy[4*i+3] = xy_3_r[i] + 1j*xy_3_i[i]
+            if normalize:
+                xy = xy / float(SCALE * acc_len)
             return xy
 
     def spec_plot(self, mode="auto"):
