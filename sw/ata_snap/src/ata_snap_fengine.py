@@ -167,6 +167,22 @@ class AtaSnapFengine(object):
         """
         import adc5g
         self.logger.info("Configuring ADC->FPGA interface")
+        # First reset ADC, then MMCM
+        self.fpga.write_int(adc5g.opb.OPB_CONTROLLER, 0b1, blindwrite=True)
+        self.fpga.write_int(adc5g.opb.OPB_CONTROLLER, 0b0, blindwrite=True)
+        time.sleep(0.001)
+        # Set initial config registers
+        self.fpga.write_int(adc5g.opb.OPB_CONTROLLER, 0b1, word_offset=1, blindwrite=True)
+        self.fpga.write_int(adc5g.opb.OPB_CONTROLLER, 0b0, word_offset=1, blindwrite=True)
+        time.sleep(0.001)
+        # Is the MMCM locked
+        unlocked_count0 = self.fpga.read_uint(adc5g.opb.OPB_CONTROLLER, word_offset=5) & 0xffff
+        unlocked_count1 = self.fpga.read_uint(adc5g.opb.OPB_CONTROLLER, word_offset=5) & 0xffff
+        if unlocked_count0 == unlocked_count1:
+            self.logger.info("MMCM is locked")
+        else:
+            self.logger.warning("MMCM appears unlocked")
+
         chosen_phase, glitches = adc5g.calibrate_mmcm_phase(self.fpga, 0, ['ss_adc'])
         self.logger.info("Glitches-vs-capture phase: %s" % glitches)
         self.logger.info("Chosen phase: %d" % chosen_phase)
