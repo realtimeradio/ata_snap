@@ -176,8 +176,8 @@ class AtaSnapFengine(object):
         self.fpga.write_int(adc5g.opb.OPB_CONTROLLER, 0b0, word_offset=1, blindwrite=True)
         time.sleep(0.001)
         # Is the MMCM locked
-        unlocked_count0 = self.fpga.read_uint(adc5g.opb.OPB_CONTROLLER, word_offset=5) & 0xffff
-        unlocked_count1 = self.fpga.read_uint(adc5g.opb.OPB_CONTROLLER, word_offset=5) & 0xffff
+        unlocked_count0 = self.fpga.read_uint(adc5g.opb.OPB_CONTROLLER, word_offset=5) >> 16
+        unlocked_count1 = self.fpga.read_uint(adc5g.opb.OPB_CONTROLLER, word_offset=5) >> 16
         if unlocked_count0 == unlocked_count1:
             self.logger.info("MMCM is locked")
         else:
