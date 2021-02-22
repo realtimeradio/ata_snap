@@ -107,7 +107,12 @@ class AtaSnapFengine(object):
         """
         if 'version' in self.fpga.listdev():
             version = self.fpga.read_uint('version')
-            self.logger.info("FPGA F-Engine version (based on 'version' register) is %d" % version)
+            ver_maj = version >> 13
+            ver_min = (version >> 11) & 0b11
+            ver_rev = (version >> 8) & 0b11
+            ver_bug = version & 0xff
+            ver_str = "%d.%d.%d-%d" % (ver_maj, ver_min, ver_rev, ver_bug)
+            self.logger.info("FPGA F-Engine version (based on 'version' register) is %s" % ver_str)
             return True
         return False
 
