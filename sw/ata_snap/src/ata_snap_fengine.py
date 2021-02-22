@@ -500,11 +500,11 @@ class AtaSnapFengine(object):
             load_fpga_clocks = load_adc_clocks // self.adc_demux_factor
             if load_fpga_clocks >= 2**64:
                 self.logger.error("Delay load time is too far in the future! (%.2f seconds)" % load_secs)
-            self.fpga.write("delay_target_load_time_msb", load_fpga_clocks >> 32)
-            self.fpga.write("delay_target_load_time_lsb", load_fpga_clocks & 0xffffffff)
+            self.fpga.write_int("delay_target_load_time_msb", load_fpga_clocks >> 32)
+            self.fpga.write_int("delay_target_load_time_lsb", load_fpga_clocks & 0xffffffff)
 
         for pol, delay in enumerate(delays):
-            self.write_int('delay%d_delay' % pol, delay)
+            self.fpga.write_int('delay_delay%d_delay' % pol, delay)
 
         if load_time != -1:
             self.fpga.write_int('delay_ctrl', 2) # disable immediate and enable timed load
@@ -524,7 +524,7 @@ class AtaSnapFengine(object):
         :return: delay, in units of ADC clock cycles
         :rtype: int
         """
-        return self.read_uint('delay_delay%d_delay' % pol)
+        return self.fpga.read_uint('delay_delay%d_loaded' % pol)
 
     def get_pending_delay(self, pol):
         """
@@ -540,7 +540,7 @@ class AtaSnapFengine(object):
           seconds since the delays were loaded.
         :rtype: (int, float)
         """
-        delay = self.read_uint('delay_delay%d_delay' % pol)
+        delay = self.fpga.read_uint('delay_delay%d_delay' % pol)
         load_clocks = self.fpga.read_uint('delay_time_to_load_msb') << 32
         load_clocks += self.fpga.read_uint('delay_time_to_load_lsb')
         if load_clocks > 2**63:
