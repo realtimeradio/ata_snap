@@ -98,7 +98,9 @@ for ip, mac in config['arp'].items():
     for ethn, eth in enumerate(feng.fpga.gbes):
         eth.set_single_arp_entry(ip, mac)
 
-for i in range(2):
+voltage_config = config.get('voltage_output', None)
+n_interfaces = voltage_config.get('n_interfaces', feng.n_interfaces)
+for i in range(n_interfaces):
     ip = config["interfaces"][feng.fpga.host][i]
     mac = config["arp"][ip]
     port = 10000
@@ -108,9 +110,7 @@ for i in range(2):
 if args.eth_spec:
     feng.spec_set_destination(config['spectrometer_dest'])
 
-voltage_config = config.get('voltage_output', None)
 if voltage_config is not None:
-    n_interfaces = voltage_config.get('n_interfaces', feng.n_interfaces)
     n_chans = voltage_config['n_chans']
     start_chan = voltage_config['start_chan']
     dests = voltage_config['dests']
