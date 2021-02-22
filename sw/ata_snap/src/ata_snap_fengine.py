@@ -455,19 +455,22 @@ class AtaSnapFengine(object):
 
         :param delay: tuple of delays to apply to a polarization pair [x-pol delay, y-pol delay]
         :type delay: float
+
         :param load_time: UNIX time at which delays should be loaded, or -1 to load immediately
         :type load_time: int
+
         :param clock_rate_hz: ADC clock rate in Hz. If None, the clock rate will be computed from
-        the observed PPS interval, which could fail if the PPS is unstable or not present.
+            the observed PPS interval, which could fail if the PPS is unstable or not present.
         :type clock_rate_hz: int
+
         :param sync_time: The time, in UNIX seconds, at which the F-engine was last synchronized.
-          If None, the sync time will be queried from the board using the `get_last_sync_time()` method.
+            If None, the sync time will be queried from the board using the `get_last_sync_time()` method.
         :type sync_time: int
 
-        :return None, unless load_time is provided. In this case return the spectrum ID (i.e., the
-          spectrum count, relative to the F-engine sync time) at which the requested delays will be
-          loaded.
+        :return: None, unless load_time is provided. In this case return the spectrum ID (the spectrum
+            count, relative to the F-engine sync time) at which the requested delays will be loaded
         :rval: int
+
         """
         for delay in delays:
             assert delay <= MAX_SAMPLE_DELAY, "Delay must be between 0 and %d" % (MAX_SAMPLE_DATA - 1)
