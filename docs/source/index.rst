@@ -10,6 +10,7 @@ ATA SNAP Firmware Documentation
    :maxdepth: 4
    :caption: Contents:
 
+   requirements.rst
    f_manual.rst
    ata_snap.rst
 

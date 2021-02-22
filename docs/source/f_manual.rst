@@ -1,4 +1,4 @@
-.. |version| replace:: 1.1.0
+.. |version| replace:: 2.0.0
 
 ATA SNAP F-Engine Firmware User Manual
 ======================================
@@ -67,7 +67,7 @@ Output Data Formats
 Spectrometer Packets
 ~~~~~~~~~~~~~~~~~~~~
 
-In versions 1.1.x  of the SNAP firmware, each spectrometer dump is a 64 kiB data set, comprising 4096 channels and 4 32-bit floating point (IEEE 754 single precision: 1-bit sign, 8-bit exponent, 23-bit fraction)  words per channel.
+In versions >1.1.x  of the SNAP firmware, each spectrometer dump is a 64 kiB data set, comprising 4096 channels and 4 32-bit floating point (IEEE 754 single precision: 1-bit sign, 8-bit exponent, 23-bit fraction)  words per channel.
 Each data dump is transmitted from the SNAP in 8 UDP packets, each with an 512 channel (8 kiB) payload and 8 byte header:
 
 .. code-block:: C
@@ -76,7 +76,7 @@ Each data dump is transmitted from the SNAP in 8 UDP packets, each with an 512 c
   #define N_p 4
 
   struct spectrometer_packet {
-    uint64 header;
+    uint64_t header;
     float data[N_c, N_p] // IEEE 754 single precision float
   };
 
@@ -105,40 +105,39 @@ Voltage Packets
 ~~~~~~~~~~~~~~~
 
 The *Voltage* mode of the SNAP firmware outputs a continuous stream of voltage data, encapsulated in UDP packets.
-Each packet contains a data payload of 8192 bytes, made up of 16 time samples for 256 frequency channels of dual-polarization data:
+Each packet contains a data payload of 8192 bytes, made up of 16 time samples for up to 256 frequency channels of dual-polarization data:
 
 .. code-block:: C
 
   #define N_t 16
-  #define N_c 256
   #define N_p 2
 
   struct voltage_packet {
-    uint64 header;
-    complex4 data[N_t, N_c, N_p] // 4-bit real + 4-bit imaginary
+    uint8_t version;
+    uint8_t type;
+    uint16_t n_chans;
+    uint16_t chan;
+    uint16_t feng_id
+    uint64_t timestamp;
+    complex4 data[n_chans, N_t, N_p] // 4-bit real + 4-bit imaginary
   };
 
-The header should be read as a network-endian 64-bit unsigned integer, with the following bit fields:
-  - bits[5:0] (i.e. ``header & 0x3f``) : 6-bit antenna ID
-  - bits[17:6] (i.e. ``(header >> 6) & 0xfff``) : 12-bit channel number
-  - bits[55:18] (i.e. ``(header >> 18) & 0x3fffffffff``) : 38-bit sample number
-  - bits[63:56] (i.e. ``(header >> 56) & 0xff``) : 8-bit Firmware version
+The header entries are all encoded network-endian and should be interpretted as follows:
+  - ``version``; *Firmware version*: Bit [7] is always 1 for *Voltage* packets. The remaining bits contain a compile-time defined firmware version, represented in the form bit[6].bits[5:3].bits[2:0]. This document refers to firmware version |version|.
+  - ``type``; *Packet type*: Bit [0] is 1 if the axes of data payload are in order [slowest to fastest] channel x time x polarization. This is currently the only supported mode. Bit [1] is 0 if the data payload comprises 4+4 bit complex integers. This is currently the only supported mode.
+  - ``n_chans``; *Number of Channels*: Indicates the number of frequency channels present in the payload of this data packet.
+  - ``chan``; *Channel number*: The index of the first channel present in this packet. For example, a channel number ``c`` implies the packet contains channels ``c`` to ``c + n_chans - 1``.
+  - ``feng_id``; *Antenna ID*: A runtime configurable ID which uniquely associates a packet with a particular SNAP board.
+  - ``timestamp``; *Sample number*: The index of the first time sample present in this packet. For example, a sample number :math:`s` implies the packet contains samples :math:`s` to :math:`s+15`. Sample number can be referred to GPS time through knowledge of the system sampling rate and accumulation length parameters, and the system was last synchronized. See `sec-timing`.
 
-Headers fields should be interpretted as follows:
-  - *Antenna ID*: A runtime configurable ID which uniquely associates a packet with a particular SNAP board and antenna.
-  - *Channel number*: The index of the first channel present in this packet. For example, a channel number :math:`c` implies the packet contains channels :math:`c` to :math:`c+255`.
-  - *Sample number*: The index of the first time sample present in this packet. For example, a sample number :math:`s` implies the packet contains samples :math:`s` to :math:`s+15`. Sample number can be referred to GPS time through knowledge of the system sampling rate and accumulation length parameters, and the system was last synchronized. See `sec-timing`.
-  - *Firmware version*: Bit [7] is always 1 for *Voltage* packets. The remaining bits contain a compile-time defined firmware version, represented in the form bit[6].bits[5:3].bits[2:0]. This document refers to firmware version |version|.
+The data payload in each packet is determined by the number of frequency channels it contains.
+The maximum is 8192 bytes.
+If ``type & 2 == 0`` each byte of data should be interpretted as a 4-bit complex number (i.e. 4-bit real, 4-bit imaginary) with the most significant 4 bits of each byte representing the real part of the complex sample in signed 2's complement format, and the least significant 4 bits representing the imaginary part of the complex sample in 2's complement format.
 
-Note that at full sample rate (2500 Msps) spectra are generated every 3.2 microseconds, thus a 38-bit spectra counter will roll over every ~10 days.
-Downstream software should take account of this if the system is expected to run for longer than this duration without a new synchronization trigger (see `sec-timing`)
+If ``type & 1 == 1`` the complete payload is an array with dimensions ``channel x time x polarization``, with
 
-The data payload in each packet is 8192 bytes. Each byte of data should be interpretted as a 4-bit complex number (i.e. 4-bit real, 4-bit imaginary) with the most significant 4 bits of each byte representing the real part of the complex sample in signed 2's complement format, and the least significant 4 bits representing the imaginary part of the complex sample in 2's complement format.
-
-The complete payload is an array with dimensions ``time x channel x polarization``, with
-
+  - ``channel`` index running from 0 to ``n_chans``
   - ``time`` index running from 0 to 15
-  - ``channel`` index running from 0 to 255
   - ``polarization`` index running from 0 to 1 with index 0 representing the X-polarization, and index 1 the Y-polarization.
 
 

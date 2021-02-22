@@ -3,7 +3,7 @@ import glob
 
 setup(
     name='ata_snap',
-    version='0.0.1',
+    version='2.0.0',
     author='J.Hickish',
     author_email='jackhickish@gmail.com',
     url='',
