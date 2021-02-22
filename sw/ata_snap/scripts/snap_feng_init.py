@@ -134,8 +134,11 @@ if args.sync:
 
 # Reset ethernet cores prior to enabling
 feng.eth_reset()
-if args.eth_spec or args.eth_volt:
-    logger.info('Enabling Ethernet output')
+if args.eth_spec:
+    logger.info('Enabling Ethernet output 0 for spectrometer mode')
+    feng.eth_enable_output(True, interface=0)
+elif args.eth_volt:
+    logger.info('Enabling all Ethernet outputs for voltage mode')
     feng.eth_enable_output(True)
 else:
     logger.info('Not enabling Ethernet output, since neither voltage or spectrometer 10GbE output flags were set.')
