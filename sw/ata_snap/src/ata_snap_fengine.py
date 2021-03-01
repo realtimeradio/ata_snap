@@ -1513,7 +1513,7 @@ class AtaSnapFengine(object):
 
         n_words = self.n_chans_f * self.n_times_per_packet * self.n_pols // TGE_N_SAMPLES_PER_WORD // self.packetizer_granularity
         hs_raw = self.fpga.read('packetizer%d_header' % interface, 8*n_words)
-        ips_raw = self.fpga.read('packetizer%d_header' % interface, 8*n_words)
+        ips_raw = self.fpga.read('packetizer%d_ips' % interface, 4*n_words)
         hs = struct.unpack('>%dQ' % n_words, hs_raw)
         ips = struct.unpack('>%dI' % n_words, ips_raw)
         headers = []
