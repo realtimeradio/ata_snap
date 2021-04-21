@@ -16,8 +16,8 @@ parser.add_argument('host', type=str,
                     help = 'Hostname / IP of RFSoC')
 parser.add_argument('fpgfile', type=str, 
                     help = '.fpgfile to program')
-parser.add_argument('configfile', type=str,
-                    help ='Configuration file')
+#parser.add_argument('configfile', type=str,
+#                    help ='Configuration file')
 parser.add_argument('-s', dest='sync', action='store_true', default=False,
                     help ='Use this flag to re-arm the design\'s sync logic')
 #parser.add_argument('-m', dest='mansync', action='store_true', default=False,
@@ -36,8 +36,8 @@ parser.add_argument('--skipprog', dest='skipprog', action='store_true', default=
 #                    help ='Use this flag to switch on Ethernet transmission of the spectrometer')
 #parser.add_argument('--eth_volt', dest='eth_volt', action='store_true', default=False,
 #                    help ='Use this flag to switch on Ethernet transmission of F-engine data')
-parser.add_argument('-a', dest='acclen', type=int, default=4000000,
-                    help ='Number of spectra to accumulate per spectrometer dump. Default: get from config file')
+parser.add_argument('-a', dest='acclen', type=int, default=250000,
+                    help ='Number of spectra to accumulate per spectrometer dump.')
 #parser.add_argument('--specdest', dest='specdest', type=str, default=None,
 #        help ='Destination IP address to which spectra should be sent. Default: get from config file')
 
