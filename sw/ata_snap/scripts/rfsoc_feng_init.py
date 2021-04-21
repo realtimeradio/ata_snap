@@ -53,8 +53,8 @@ logger.addHandler(handler)
 
 # Load configuration file and override parameters with
 # user flags
-with open(args.configfile, 'r') as fh:
-    config = yaml.load(fh, Loader=yaml.SafeLoader)
+#with open(args.configfile, 'r') as fh:
+#    config = yaml.load(fh, Loader=yaml.SafeLoader)
 
 #config['acclen'] = args.acclen or config['acclen']
 #config['spectrometer_dest'] = args.specdest or config['spectrometer_dest']
