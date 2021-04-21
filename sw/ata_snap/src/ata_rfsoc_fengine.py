@@ -48,3 +48,25 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         self.fpga.get_system_information(fpgfile)
         self.sync_select_input(self.pps_source)
         self.fpga.write_int("corr_feng_id", self.feng_id)
+
+    def adc_get_samples(self):
+        """
+        Get a block of samples from both ADC inputs, captured simultaneously.
+
+        This method requires that the currently programmed fpg file is known.
+        This can be achieved either by programming the board with program(<fpgfile>),
+        or by running fpga.get_system_information(<fpgfile>) if the board
+        was already programmed outside of this class.
+
+        :return: x, y (numpy arrays of ADC sample values)
+        :rtype: numpy.ndarray
+        """
+        if len(self.fpga.snapshots) == 0:
+            raise RuntimeError("Please run AtaRfsocFengine.program(...) or "
+                    "AtaRfsocFengine.fpga.get_system_information(...) with the "
+                    "loaded bitstream prior to trying to snapshot data")
+        dx, t = self.fpga.snapshots.ss_adc0.read_raw(man_trig=True, man_valid=True)
+        dy, t = self.fpga.snapshots.ss_adc1.read_raw(man_trig=True, man_valid=True)
+        x = struct.unpack(">%dh" % (dx['length']//2), dx['data'])
+        y = struct.unpack(">%dh" % (dy['length']//2), dy['data'])
+        return x, y
