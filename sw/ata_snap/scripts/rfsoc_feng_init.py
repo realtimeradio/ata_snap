@@ -85,6 +85,10 @@ logger.info("Estimating FPGA clock")
 clk_rate_mhz = feng.fpga.estimate_fpga_clock()
 logger.info("Clock rate: %.1f MHz" % clk_rate_mhz)
 
+fft_shift = 0xff
+logger.info("Setting FFT shift to 0x%x" % fft_shift)
+feng.fpga.write_int("pfb_fft_shift", fft_shift)
+
 ## Disable ethernet output before doing anything
 #feng.eth_enable_output(False)
 
