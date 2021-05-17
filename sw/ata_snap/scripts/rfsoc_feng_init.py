@@ -20,8 +20,8 @@ parser.add_argument('fpgfile', type=str,
 #                    help ='Configuration file')
 parser.add_argument('-s', dest='sync', action='store_true', default=False,
                     help ='Use this flag to re-arm the design\'s sync logic')
-#parser.add_argument('-m', dest='mansync', action='store_true', default=False,
-#                    help ='Use this flag to issue an internal sync rather than using a PPS')
+parser.add_argument('-m', dest='mansync', action='store_true', default=False,
+                    help ='Use this flag to issue an internal sync rather than using a PPS')
 parser.add_argument('-t', dest='tvg', action='store_true', default=False,
                     help ='Use this flag to switch to post-fft test vector outputs')
 #parser.add_argument('-i', dest='feng_id', type=int,
@@ -139,11 +139,13 @@ feng.spec_test_vector_mode(enable=args.tvg)
 #elif args.eth_volt:
 #    feng.eth_set_mode('voltage')
 
+# RFSoC board only has a single sync input connected
+feng.sync_select_input('board')
+
 if args.sync:
-    #if not args.mansync:
-    #    feng.sync_wait_for_pps()
-    #feng.sync_arm(manual_trigger=args.mansync)
-    feng.sync_arm(manual_trigger=True)
+    if not args.mansync:
+        feng.sync_wait_for_pps()
+    feng.sync_arm(manual_trigger=args.mansync)
 
 ## Reset ethernet cores prior to enabling
 #feng.eth_reset()
