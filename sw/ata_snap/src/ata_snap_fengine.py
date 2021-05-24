@@ -94,6 +94,21 @@ class AtaSnapFengine(object):
         #    except:
         #        self.logging.warning("Tried to get fpg meta-data from a running board and failed!")
 
+    def _pipeline_get_regname(self, regname):
+        """
+        Modify register name ``regname`` to comply with pipeline naming
+        conventions.
+
+        :param regname: The register name in this pipeline to be accessed.
+        :type regname: str
+
+        :return: Expanded register name, matching the spec recognized
+            by CasperFpga.
+        :rtype: str
+        """
+        # Do nothing.
+        return regname
+
     def is_programmed(self):
         """
         Returns True if the fpga appears to be programmed
@@ -151,7 +166,7 @@ class AtaSnapFengine(object):
         self.sync_select_input(self.pps_source)
         if init_adc:
             self.adc_initialize()
-        self.fpga.write_int("corr_feng_id", self.feng_id)
+        self.fpga.write_int(self._pipeline_get_regname("corr_feng_id"), self.feng_id)
 
     def adc_initialize(self):
         """
@@ -595,7 +610,7 @@ class AtaSnapFengine(object):
             for t in range(self.n_times_per_packet):
                 out_array[xn * self.n_times_per_packet + t] = x + (t*self.n_chans_f // self.n_chans_per_block)
         
-        self.fpga.write('chan_reorder_reorder3_map', out_array.tobytes())
+        self.fpga.write(self._pipeline_get_regname('chan_reorder_reorder3_map'), out_array.tobytes())
 
     def fft_of_detect(self):
         """
@@ -606,7 +621,7 @@ class AtaSnapFengine(object):
         :return: True if FFT overflowed in the last accumulation period, False otherwise.
         :rtype: bool
         """
-        return bool(self.fpga.read_uint('pfb_fft_of'))
+        return bool(self.fpga.read_uint(self._pipeline_get_regname('pfb_fft_of')))
 
     def quant_spec_read(self, pol=0, flush=True, normalize=False):
         """
@@ -826,7 +841,7 @@ class AtaSnapFengine(object):
             coeffs_str = struct.pack('>%dL'%n_coeffs, *coeffs)
         else:
             raise TypeError("Don't know how to convert %d-bit numbers to binary" % COEFF_BITS)
-        self.fpga.write('eq_pol%d_coeffs' % pol, coeffs_str)
+        self.fpga.write(self._pipeline_get_regname('eq_pol%d_coeffs' % pol), coeffs_str)
         return np.array(coeffs).repeat(self.n_coeff_shared), COEFF_BP
 
     def eq_read_coeffs(self, pol, return_float=False):
@@ -855,7 +870,8 @@ class AtaSnapFengine(object):
 
         assert pol in [0, 1]
 
-        coeffs = np.array(struct.unpack('>%dI' % n_coeffs, self.fpga.read('eq_pol%d_coeffs' % pol, n_coeffs*4))).repeat(self.n_coeff_shared)
+        raw = self.fpga.read(self._pipeline_get_regname('eq_pol%d_coeffs' % pol), n_coeffs*4)
+        coeffs = np.array(struct.unpack('>%dI' % n_coeffs, raw)).repeat(self.n_coeff_shared)
         if return_float:
             return coeffs / 2.0**COEFF_BP
         else:
@@ -884,7 +900,7 @@ class AtaSnapFengine(object):
         assert pol in [0, 1]
         tv_8bit = [x%256 for x in tv]
         tv_8bit_str = struct.pack('>%dB'%self.n_chans_f, *tv_8bit)
-        self.fpga.write('eqtvg_pol%d_tv' % pol, tv_8bit_str)
+        self.fpga.write(self._pipeline_get_regname('eqtvg_pol%d_tv' % pol), tv_8bit_str)
 
     def eq_test_vector_mode(self, enable):
         """
@@ -900,7 +916,7 @@ class AtaSnapFengine(object):
             self.logger.info("Turning ON post-EQ test-vectors")
         else:
             self.logger.info("Turning OFF post-EQ test-vectors")
-        self.fpga.write_int('eqtvg_tvg_en', int(enable))
+        self.fpga.write_int(self._pipeline_get_regname('eqtvg_tvg_en'), int(enable))
 
     def spec_test_vector_mode(self, enable):
         """
@@ -918,7 +934,7 @@ class AtaSnapFengine(object):
             self.logger.info("Turning ON Spectrometer test-vectors")
         else:
             self.logger.info("Turning OFF Spectrometer test-vectors")
-        self.fpga.write_int('spec_tvg_tvg_en', int(enable))
+        self.fpga.write_int(self._pipeline_get_regname('spec_tvg_tvg_en'), int(enable))
 
     def spec_read(self, mode="auto", flush=False, normalize=False):
         """
@@ -956,22 +972,27 @@ class AtaSnapFengine(object):
 
         assert mode in ["auto", "cross"]
         if mode == "auto":
-            self.fpga.write_int("corr_vacc_ss_sel", 0)
+            v = 0
         else:
-            self.fpga.write_int("corr_vacc_ss_sel", 1)
+            v = 1
+        self.fpga.write_int(self._pipeline_get_regname("corr_vacc_ss_sel"), v)
+        ss0 = self.fpga.snapshots[self._pipeline_get_regname('corr_vacc_ss_ss0')]
+        ss1 = self.fpga.snapshots[self._pipeline_get_regname('corr_vacc_ss_ss1')]
+        ss2 = self.fpga.snapshots[self._pipeline_get_regname('corr_vacc_ss_ss2')]
+        ss3 = self.fpga.snapshots[self._pipeline_get_regname('corr_vacc_ss_ss3')]
 
         # Get the accumulation length if we need it for scaling
         if normalize:
             acc_len = self.get_accumulation_length()
 
         if flush:
-            self.fpga.snapshots.corr_vacc_ss_ss0.read_raw()
+            ss0.read_raw()
 
-        self.fpga.snapshots.corr_vacc_ss_ss0.arm() # This arms all RAMs
-        d0, t0 = self.fpga.snapshots.corr_vacc_ss_ss0.read_raw(arm=False)
-        d1, t1 = self.fpga.snapshots.corr_vacc_ss_ss1.read_raw(arm=False)
-        d2, t2 = self.fpga.snapshots.corr_vacc_ss_ss2.read_raw(arm=False)
-        d3, t3 = self.fpga.snapshots.corr_vacc_ss_ss3.read_raw(arm=False)
+        ss0.arm() # This arms all RAMs
+        d0, t0 = ss0.read_raw(arm=False)
+        d1, t1 = ss1.read_raw(arm=False)
+        d2, t2 = ss2.read_raw(arm=False)
+        d3, t3 = ss3.read_raw(arm=False)
         d0i = struct.unpack(">%dq" % (d0["length"] // 8), d0["data"])
         d1i = struct.unpack(">%dq" % (d1["length"] // 8), d1["data"])
         d2i = struct.unpack(">%dq" % (d2["length"] // 8), d2["data"])
@@ -1077,7 +1098,7 @@ class AtaSnapFengine(object):
         """
         self.logger.info('Setting spectrometer packet destination to %s' % dest_ip)
         ip_int = _ip_to_int(dest_ip)
-        self.fpga.write_int("corr_dest_ip", ip_int)
+        self.fpga.write_int(self._pipeline_get_regname("corr_dest_ip"), ip_int)
 
     def eth_set_mode(self, mode="voltage"):
         """
@@ -1095,9 +1116,9 @@ class AtaSnapFengine(object):
         # Disbale the ethernet output before doing anything
         self.eth_enable_output(enable=False)
         if mode == "voltage":
-             self.fpga.write_int("eth_mux_use_voltage", 1)
+             self.fpga.write_int(self._pipeline_get_regname("eth_mux_use_voltage"), 1)
         elif mode == "spectra":
-             self.fpga.write_int("eth_mux_use_voltage", 0)
+             self.fpga.write_int(self._pipeline_get_regname("eth_mux_use_voltage"), 0)
 
     def eth_enable_output(self, enable=True, interface='all'):
         """
