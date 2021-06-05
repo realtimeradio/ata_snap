@@ -34,6 +34,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         Constructor method
         """
         self.fpga = casperfpga.CasperFpga(host, transport=casperfpga.KatcpTransport)
+        self.fpga.is_little_endian = True # seems to have issues autodetecting?
         self.host = host
         self.logger = logging.getLogger('AtaRfsocFengine')
         self.logger.setLevel(logging.DEBUG)
