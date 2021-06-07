@@ -26,8 +26,8 @@ parser.add_argument('-t', dest='tvg', action='store_true', default=False,
                     help ='Use this flag to switch to post-fft test vector outputs')
 parser.add_argument('-i', dest='feng_ids', type=str, default='0,1,2,3',
                     help='Comma separated list of F-engine IDs to write to this SNAP\'s output packets')
-parser.add_argument('-p', dest='dest_port', type=int,
-                    default=10000, help='10GBe destination port')
+parser.add_argument('-p', dest='dest_port', type=str,
+                    default='10000,10001,10002,10003', help='Comma-separated 100 GBe destination ports. One per F-engine')
 parser.add_argument('--skipprog', dest='skipprog', action='store_true', default=False,
                     help='Skip programming .fpg file')
 parser.add_argument('--eth_spec', dest='eth_spec', action='store_true', default=False,
@@ -59,6 +59,9 @@ with open(args.configfile, 'r') as fh:
 config['acclen'] = args.acclen or config['acclen']
 config['spectrometer_dest'] = args.specdest or config['spectrometer_dest']
 config['dest_port'] = args.dest_port or config['dest_port']
+config['dest_port'] = list(map(int, config['dest_port'].split(',')))
+
+
 
 transport = casperfpga.KatcpTransport
 
@@ -134,8 +137,8 @@ if args.eth_spec:
 #    logger.info('Using %d interfaces' % n_interfaces)
 #    feng.select_output_channels(start_chan, n_chans, dests, n_interfaces=n_interfaces)
 
-for feng in fengs:
-    feng.eth_set_dest_port(config['dest_port'])
+for fn, feng in enumerate(fengs):
+    feng.eth_set_dest_port(config['dest_port'][fn])
 
 #if args.eth_spec:
 #    feng.eth_set_mode('spectra')

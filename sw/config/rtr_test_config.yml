@@ -3,7 +3,7 @@ acclen: 300000
 # of 4096 numbers to set one coefficient per channel.
 coeffs: 100
 # UDP port for 10GbE data
-dest_port: 10000
+dest_port: 10000,10001,10002,10003
 spectrometer_dest: 10.11.10.174
 # Define which channels should be output
 # over 10GbE in voltage dump mode.

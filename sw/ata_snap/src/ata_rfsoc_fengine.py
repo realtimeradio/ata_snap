@@ -563,3 +563,15 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         for i in range(len(out_bytes)//4):
             self.fpga.write(self._pipeline_get_regname('chan_reorder_reorder_map'), out_bytes[4*i:4*(i+1)], offset=4*i)
         assert self.fpga.read(self._pipeline_get_regname('chan_reorder_reorder_map'), len(out_bytes)) == out_bytes, "Readback failed"
+
+    def eth_set_dest_port(self, port, interface=None):
+        """
+        Set the destination UDP port for output 100GbE packets.
+
+        :param port: UDP port to which traffic should be sent.
+        :type port: int
+        :param interface: Unused. Maintained for API compatibility
+        :type interface: None
+        """
+        port_reg = self._pipeline_get_regname('corr_dest_port')
+        v = self.fpga.write_int(port_reg, port)
