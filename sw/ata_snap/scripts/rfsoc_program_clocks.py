@@ -24,7 +24,7 @@ parser.add_argument('--sfpstat', dest='sfpstat', action="store_true",
                     help ='Read SFP status information')
 args = parser.parse_args()
 
-r = casperfpga.CasperFpga('rfsoc1', transport=casperfpga.KatcpTransport)
+r = casperfpga.CasperFpga(args.host, transport=casperfpga.KatcpTransport)
 i2c_dev = i2c.I2C(r, 'i2c_interface')
 
 i2c_mux_dev = i2c_mux.PCA9548A(i2c_dev, 1)
