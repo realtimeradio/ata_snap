@@ -209,8 +209,8 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             raise RuntimeError("Please run AtaRfsocFengine.program(...) or "
                     "AtaRfsocFengine.fpga.get_system_information(...) with the "
                     "loaded bitstream prior to trying to snapshot data")
-        self.fpga.write_int('sel0', 2*self.pipeline_id)
-        self.fpga.write_int('sel1', 2*self.pipeline_id + 1)
+        self.fpga.write_int('sel0', self.pipeline_id)
+        self.fpga.write_int('sel1', self.pipeline_id + 8)
         dx, t = self.fpga.snapshots.ss_adc0.read_raw(man_trig=True, man_valid=True)
         dy, t = self.fpga.snapshots.ss_adc1.read_raw(man_trig=True, man_valid=True)
         x = struct.unpack(">%dh" % (dx['length']//2), dx['data'])
