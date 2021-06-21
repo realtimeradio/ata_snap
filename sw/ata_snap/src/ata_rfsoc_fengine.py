@@ -217,6 +217,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         y = struct.unpack(">%dh" % (dy['length']//2), dy['data'])
         return x, y
 
+
     def eq_load_test_vectors(self, pol, tv):
         """
         Load test vectors for the Voltage pipeline test vector injection module.
@@ -575,3 +576,78 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         """
         port_reg = self._pipeline_get_regname('corr_dest_port')
         v = self.fpga.write_int(port_reg, port)
+
+def adc_plot_all(fengine, n_times=100):
+    """
+    Plot time series from all ADC inputs.
+
+    :param fengine: AtaRfsocFengine instance
+    :type fengine: AtaRfsocFengine
+
+    :param n_times: Number of time samples to plot.
+    :type n_times: int
+    """
+    from matplotlib import pyplot as plt
+    fig = plt.Figure()
+    x_plots = 8
+    y_plots = int(np.ceil(fengine.n_ants_per_board / 8))
+    for ant in range(fengine.n_ants_per_board):
+        plt.subplot(x_plots, y_plots, ant+1)
+        for pn, pol in enumerate(['x', 'y']):
+            fengine.fpga.write_int('sel0', 2*ant + pn)
+            fengine.fpga.write_int('ss_adc0_ctrl', 0)
+            fengine.fpga.write_int('ss_adc0_ctrl', 0b111)
+            time.sleep(0.001)
+            fengine.fpga.write_int('ss_adc0_ctrl', 0)
+            d_raw = fengine.fpga.read('ss_adc0_bram', n_times*2)
+            d = struct.unpack('>%dh' % n_times, d_raw)
+            plt.plot(d, label='%d%s (IN%d)' % (ant, pol, 1+ant+8*pn))
+        plt.legend()
+    plt.show()
+
+def adc_get_spec(fengine, ant, pol, acc_len):
+    SNAP_BYTES = 2**14
+    fengine.fpga.write_int('sel0', ant + 8*pol)
+    spec = None
+    for n in range(acc_len):
+        fengine.fpga.write_int('ss_adc0_ctrl', 0)
+        fengine.fpga.write_int('ss_adc0_ctrl', 0b111)
+        d_raw = fengine.fpga.read('ss_adc0_bram', SNAP_BYTES)
+        d = struct.unpack('>%dh' % (SNAP_BYTES // 2), d_raw)
+        power = np.abs(np.fft.rfft(d))**2
+        if spec is None:
+            spec = power
+        else:
+            spec += power
+    fengine.fpga.write_int('ss_adc0_ctrl', 0)
+    return spec
+
+def adc_plot_spec_all(fengine, acc_len=16, bw_mhz=1024.):
+    """
+    Plot time series from all ADC inputs.
+
+    :param fengine: AtaRfsocFengine instance
+    :type fengine: AtaRfsocFengine
+
+    :param acc_len: Number of spectra to accumulate
+    :type acc_len: int
+    """
+    from matplotlib import pyplot as plt
+    fig = plt.Figure()
+    x_plots = 8
+    y_plots = int(np.ceil(fengine.n_ants_per_board / 8))
+    for ant in range(fengine.n_ants_per_board):
+        plt.subplot(x_plots, y_plots, ant+1)
+        for pn, pol in enumerate(['x', 'y']):
+            y = adc_get_spec(fengine, ant, pn, acc_len)
+            x = np.linspace(0, bw_mhz, y.shape[0])
+            plt.plot(x, 10*np.log10(y), label='%d%s (IN%d)' % (ant, pol, 1+ant+8*pn))
+        plt.legend()
+    plt.show()
+
+
+        
+
+
+            
+
