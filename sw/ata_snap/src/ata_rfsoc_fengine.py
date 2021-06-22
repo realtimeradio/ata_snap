@@ -594,7 +594,7 @@ def adc_plot_all(fengine, n_times=100):
     for ant in range(fengine.n_ants_per_board):
         plt.subplot(x_plots, y_plots, ant+1)
         for pn, pol in enumerate(['x', 'y']):
-            fengine.fpga.write_int('sel0', 2*ant + pn)
+            fengine.fpga.write_int('sel0', ant + 8*pn)
             fengine.fpga.write_int('ss_adc0_ctrl', 0)
             fengine.fpga.write_int('ss_adc0_ctrl', 0b111)
             time.sleep(0.001)
