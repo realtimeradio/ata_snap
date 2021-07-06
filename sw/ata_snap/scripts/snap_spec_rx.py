@@ -37,6 +37,8 @@ parser.add_argument('-i', dest='ip', type=str, default='100.100.10.1',
                     help ='IP address on which to receive')
 parser.add_argument('-p', dest='port', type=int, default=10000,
                     help ='UDP port on which to receive')
+parser.add_argument('--printone', action='store_true',
+                    help ='print a single packet from each source and integration')
 parser.add_argument('-d', dest='print_data', action='store_true',
                     help ='Print snippet of packet data')
 
@@ -54,7 +56,8 @@ try:
     while(True):
         data = sock.recv(RXBUF)
         h, x, y, xy_r, xy_i = unpack(data)
-        print(h)
+        if not args.printone or h['block_index'] == 0:
+            print(time.time(), h)
         if args.print_data:
             print('x', x[0:10])
             print('y', y[0:10])
