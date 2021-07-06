@@ -78,7 +78,10 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         self.spec_set_pipeline_id()
 
     def spec_set_pipeline_id(self):
-        self.fpga.write_int(self._pipeline_get_regname("corr_feng_id"), self.feng_id)
+        if self._pipeline_get_regname("corr_feng_id") in self.fpga.listdev():
+            self.fpga.write_int(self._pipeline_get_regname("corr_feng_id"), self.feng_id)
+        else:
+            pass
 
     def spec_read(self, mode="auto", flush=False, normalize=False):
         """
@@ -515,7 +518,8 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
 
         h_bytestr = b''
         ip_bytestr = b''
-        for h in headers:
+        for hn, h in enumerate(headers):
+            print(hn, h)
             header_word = (int(h['last']) << 58) \
                         + (int(h['valid']) << 57) \
                         + (int(h['first']) << 56) \
@@ -527,11 +531,11 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             h_bytestr += struct.pack('>Q', header_word)
             ip_bytestr += struct.pack('>I', _ip_to_int(h['dest']))
         for i in range(len(ip_bytestr) // 4):
-            self.fpga.write(self._pipeline_get_regname('packetizer%d_ips' % interface), ip_bytestr[4*i:4*(i+1)], offset=4*i+8*offset)
-        assert self.fpga.read(self._pipeline_get_regname('packetizer%d_ips' % interface), len(ip_bytestr), offset=8*offset) == ip_bytestr, "Readback failed!"
+            self.fpga.write('packetizer%d_ips' % interface, ip_bytestr[4*i:4*(i+1)], offset=4*i+8*offset)
+        assert self.fpga.read('packetizer%d_ips' % interface, len(ip_bytestr), offset=8*offset) == ip_bytestr, "Readback failed!"
         for i in range(len(h_bytestr) // 4):
-            self.fpga.write(self._pipeline_get_regname('packetizer%d_header' % interface), h_bytestr[4*i:4*(i+1)], offset=4*i+8*offset)
-        assert self.fpga.read(self._pipeline_get_regname('packetizer%d_header' % interface), len(h_bytestr), offset=8*offset) == h_bytestr, "Readback failed!"
+            self.fpga.write('packetizer%d_header' % interface, h_bytestr[4*i:4*(i+1)], offset=4*i+8*offset)
+        assert self.fpga.read('packetizer%d_header' % interface, len(h_bytestr), offset=8*offset) == h_bytestr, "Readback failed!"
 
     def _reorder_channels(self, order, transpose_time=True):
         """
@@ -562,8 +566,8 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         
         out_bytes = out_array.tobytes()
         for i in range(len(out_bytes)//4):
-            self.fpga.write(self._pipeline_get_regname('chan_reorder_reorder_map'), out_bytes[4*i:4*(i+1)], offset=4*i)
-        assert self.fpga.read(self._pipeline_get_regname('chan_reorder_reorder_map'), len(out_bytes)) == out_bytes, "Readback failed"
+            self.fpga.write('chan_reorder_reorder_map', out_bytes[4*i:4*(i+1)], offset=4*i)
+        assert self.fpga.read('chan_reorder_reorder_map', len(out_bytes)) == out_bytes, "Readback failed"
 
     def eth_set_dest_port(self, port, interface=None):
         """
