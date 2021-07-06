@@ -3,17 +3,18 @@ acclen: 300000
 # of 1024 numbers to set one coefficient per 8 channels.
 coeffs: 100
 # UDP port for 10GbE data
-dest_port: 10000,10001,10002,10003
+dest_port: 10000,10001,10002,10003,10004,10005,10006,10007
 spectrometer_dest: 10.11.1.31
 # Define which channels should be output
 # over 10GbE in voltage dump mode.
 voltage_output:
   start_chan: 0
-  n_chans: 64
+  n_chans: 256
   # Channels will be spread over the following
   # destinations so that the first n_chans // len(dests)
   # go to the first IP address, etc.
   dests:
+      - 10.11.1.31
       - 10.11.1.31
   # Number of SNAP 10G outputs to use for voltages
   n_interfaces: 1
@@ -63,8 +64,12 @@ arp:
   10.11.1.205: 0x020203010005
 # 10G port mappings based on SNAP hostname
 interfaces:
-  rfsoc1:
+  rfsoc1-ctrl-1:
     - 10.11.1.201
+  rfsoc2-ctrl-1:
+    - 10.11.1.202
+  rfsoc3-ctrl-1:
+    - 10.11.1.203
   frb-snap1-pi:
     - 10.11.1.161
     - 10.11.1.181
