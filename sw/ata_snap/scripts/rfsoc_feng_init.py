@@ -87,11 +87,13 @@ logger.info("Estimating FPGA clock")
 clk_rate_mhz = fengs[0].fpga.estimate_fpga_clock()
 logger.info("Clock rate: %.1f MHz" % clk_rate_mhz)
 
-fft_shift = 0xff
-if not args.testmode:
-    logger.info("Setting FFT shift to 0x%x" % fft_shift)
-    for feng in fengs:
-        feng.fpga.write_int("pfb_fft_shift", fft_shift)
+# Firmware doesn't respect FFT shift, so don't pretend it does!
+
+#fft_shift = 0xff
+#if not args.testmode:
+#    logger.info("Setting FFT shift to 0x%x" % fft_shift)
+#    for feng in fengs:
+#        feng.fpga.write_int("pfb_fft_shift", fft_shift)
 
 # Disable ethernet output before doing anything
 fengs[0].eth_enable_output(False)
@@ -106,7 +108,10 @@ fengs[0].set_accumulation_length(config['acclen'])
 #feng.eq_load_test_vectors(0, list(range(feng.n_chans_f)))
 #feng.eq_load_test_vectors(1, list(range(feng.n_chans_f)))
 #feng.eq_test_vector_mode(enable=args.tvg)
-fengs[0].spec_test_vector_mode(enable=args.tvg)
+try:
+    fengs[0].spec_test_vector_mode(enable=args.tvg)
+except:
+    pass
 
 # Configure arp table
 for ip, mac in config['arp'].items():
@@ -128,17 +133,22 @@ if args.eth_spec:
         feng.spec_set_pipeline_id()
         feng.spec_set_destination(config['spectrometer_dest'])
 
-#if voltage_config is not None:
-#    n_chans = voltage_config['n_chans']
-#    start_chan = voltage_config['start_chan']
-#    dests = voltage_config['dests']
-#    logger.info('Voltage output sending channels %d to %d' % (start_chan, start_chan+n_chans-1))
-#    logger.info('Destination IPs: %s' %dests)
-#    logger.info('Using %d interfaces' % n_interfaces)
-#    feng.select_output_channels(start_chan, n_chans, dests, n_interfaces=n_interfaces)
+if args.eth_volt:
+    if voltage_config is not None:
+        n_chans = voltage_config['n_chans']
+        start_chan = voltage_config['start_chan']
+        dests = voltage_config['dests']
+        logger.info('Voltage output sending channels %d to %d' % (start_chan, start_chan+n_chans-1))
+        logger.info('Destination IPs: %s' %dests)
+        logger.info('Using %d interfaces' % n_interfaces)
+        output = fengs[0].select_output_channels(start_chan, n_chans, dests, n_interfaces=n_interfaces)
+        print(output)
+    else:
+        logger.error("Requested voltage output but config file fif not provide a configuration")
 
-for fn, feng in enumerate(fengs):
-    feng.eth_set_dest_port(config['dest_port'][fn])
+if args.eth_spec:
+    for fn, feng in enumerate(fengs):
+        feng.eth_set_dest_port(config['dest_port'][fn])
 
 #if args.eth_spec:
 #    feng.eth_set_mode('spectra')
