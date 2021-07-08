@@ -27,11 +27,14 @@ parser.add_argument('-t', dest='tvg', action='store_true', default=False,
 parser.add_argument('-i', dest='feng_ids', type=str, default='0,1,2,3',
                     help='Comma separated list of F-engine IDs to write to this SNAP\'s output packets')
 parser.add_argument('-p', dest='dest_port', type=str,
-                    default='10000,10001,10002,10003', help='Comma-separated 100 GBe destination ports. One per F-engine')
+                    default='10000,10001,10002,10003,10004,10005,10006,10007',
+                    help='Comma-separated 100 GBe destination ports. One per F-engine')
 parser.add_argument('--skipprog', dest='skipprog', action='store_true', default=False,
                     help='Skip programming .fpg file')
 parser.add_argument('--eth_spec', dest='eth_spec', action='store_true', default=False,
                     help ='Use this flag to switch on Ethernet transmission of the spectrometer')
+parser.add_argument('--noblank', dest='noblank', action='store_true', default=False,
+                    help ='Use this flag to send packets for dummy F-engines (labeled with FID 65535)')
 parser.add_argument('--eth_volt', dest='eth_volt', action='store_true', default=False,
                     help ='Use this flag to switch on Ethernet transmission of F-engine data')
 parser.add_argument('-a', dest='acclen', type=int, default=250000,
@@ -113,6 +116,18 @@ try:
 except:
     pass
 
+try:
+    for fn, feng in enumerate(fengs):
+        if not args.testmode:
+            feng.eq_load_coeffs(0, config['coeffs'])
+            feng.eq_load_coeffs(1, config['coeffs'])
+        feng.eq_load_test_vectors(0, list(range(feng.n_chans_f)))
+        feng.eq_load_test_vectors(1, list(range(feng.n_chans_f)))
+        feng.eq_test_vector_mode(enable=args.tvg)
+except:
+    print("Failed to set Voltage test vector mode!")
+    pass
+
 # Configure arp table
 for ip, mac in config['arp'].items():
     print ("Configuring ip: %s with mac: %x" %(ip, mac))
@@ -141,10 +156,24 @@ if args.eth_volt:
         logger.info('Voltage output sending channels %d to %d' % (start_chan, start_chan+n_chans-1))
         logger.info('Destination IPs: %s' %dests)
         logger.info('Using %d interfaces' % n_interfaces)
-        output = fengs[0].select_output_channels(start_chan, n_chans, dests, n_interfaces=n_interfaces)
-        print(output)
+        for fn, feng in enumerate(fengs):
+            dest_port = config['dest_port'][fn]
+            dest_ports = [dest_port for _ in range(len(dests))]
+            output = feng.select_output_channels(start_chan, n_chans, dests, n_interfaces=n_interfaces, dest_ports=dest_ports)
+            print(output)
+        # hack to fill in channel reorder map for unused F-engines
+        orig_pipeline_id = fengs[-1].pipeline_id
+        orig_feng_id = fengs[-1].feng_id
+        for pipeline_id in range(orig_pipeline_id+1, fengs[-1].n_ants_per_board):
+            dest_port = config['dest_port'][pipeline_id]
+            dest_ports = [dest_port for _ in range(len(dests))]
+            fengs[-1].feng_id = -1
+            fengs[-1].pipeline_id = pipeline_id
+            fengs[-1].select_output_channels(start_chan, n_chans, dests, n_interfaces=n_interfaces, dest_ports=dest_ports, blank=not args.noblank)
+        fengs[-1].pipeline_id = orig_pipeline_id
+        fengs[-1].feng_id = orig_feng_id
     else:
-        logger.error("Requested voltage output but config file fif not provide a configuration")
+        logger.error("Requested voltage output but config file did not provide a configuration")
 
 if args.eth_spec:
     for fn, feng in enumerate(fengs):

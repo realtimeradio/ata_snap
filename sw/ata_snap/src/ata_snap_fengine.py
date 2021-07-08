@@ -40,7 +40,6 @@ def silence_tftpy():
         l = logging.getLogger(log)
         l.setLevel(logging.CRITICAL)
 
-TGE_N_SAMPLES_PER_WORD = 8 # 8 1-byte words per 64-bit 10GbE input. TODO: what about 8-bit mode?
 MAX_SAMPLE_DELAY = 16384 - 1
 
 class AtaSnapFengine(object):
@@ -71,6 +70,8 @@ class AtaSnapFengine(object):
     n_times_per_packet = 16 # Number of time samples per packet
     packetizer_granularity = 2**5 # Number of 64-bit words ber packetizer step
     n_coeff_shared = 4 # Number of adjacent frequency channels sharing an EQ coefficient
+    tge_n_samples_per_word = 8 # 8 1-byte time samples per 64-bit 10GbE output.
+    n_ants_per_board = 1 #: Number of antennas on a board
 
     def __init__(self, host, feng_id=0, transport=casperfpga.TapcpTransport, use_rpi=None):
         """
@@ -1503,7 +1504,7 @@ class AtaSnapFengine(object):
         self.fpga.write('packetizer%d_ips' % interface, ip_bytestr)
         self.fpga.write('packetizer%d_header' % interface, h_bytestr)
 
-    def _read_headers(self, interface):
+    def _read_headers(self, interface, n_words=None):
         """
         Get the header entries from one of this board's packetizers.
 
@@ -1532,9 +1533,10 @@ class AtaSnapFengine(object):
           - `dest` : String, the destination IP of this data block (eg "10.10.10.100")
         """
 
-        n_words = self.n_chans_f * self.n_times_per_packet * self.n_pols // TGE_N_SAMPLES_PER_WORD // self.packetizer_granularity
+        if n_words is None:
+            n_words = self.n_chans_f * self.n_times_per_packet * self.n_pols // self.tge_n_samples_per_word // self.packetizer_granularity
         hs_raw = self.fpga.read('packetizer%d_header' % interface, 8*n_words)
-        ips_raw = self.fpga.read('packetizer%d_header' % interface, 8*n_words)
+        ips_raw = self.fpga.read('packetizer%d_ips' % interface, 4*n_words)
         hs = struct.unpack('>%dQ' % n_words, hs_raw)
         ips = struct.unpack('>%dI' % n_words, ips_raw)
         headers = []
@@ -1543,11 +1545,11 @@ class AtaSnapFengine(object):
             headers[-1]['feng_id'] = (d >> 0) & 0xffff
             headers[-1]['chans'] = (d >> 16) & 0xffff
             headers[-1]['n_chans'] = (d >> 32) & 0xffff
-            headers[-1]['is_time_fastest'] = bool(d >> 48)
-            headers[-1]['is_8_bit'] = bool(d >> 49)
-            headers[-1]['first'] = bool(d >> 56)
-            headers[-1]['valid'] = bool(d >> 57)
-            headers[-1]['last'] = bool(d >> 58)
+            headers[-1]['is_time_fastest'] = bool((d >> 48) & 1)
+            headers[-1]['is_8_bit'] = bool((d >> 49) & 1)
+            headers[-1]['first'] = bool((d >> 56) & 1)
+            headers[-1]['valid'] = bool((d >> 57) & 1)
+            headers[-1]['last'] = bool((d >> 58) & 1)
             headers[-1]['dest'] = _int_to_ip(ips[dn])
         return headers
         
