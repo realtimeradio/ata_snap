@@ -14,8 +14,9 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
     and communicating with an RFSoC board running the ATA F-Engine
     firmware.
 
-    :param host: Hostname of board associated with this instance.
-    :type host: str
+    :param host: Hostname of board associated with this instance. Or, pre-created
+        casperfpga.CasperFpga instance to the relevant host
+    :type host: str or casperfpga.CasperFpga
     :param feng_id: Antenna ID of the antenna connected to this SNAP.
         This value is used in the output headers of data packets.
     :type feng_id: int
@@ -33,13 +34,25 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         """
         Constructor method
         """
-        self.fpga = casperfpga.CasperFpga(host, transport=casperfpga.KatcpTransport)
+        if isinstance(host, casperfpga.CasperFpga):
+            self.fpga = host
+            self.host = self.fpga.host
+        else:
+            self.fpga = casperfpga.CasperFpga(host, transport=casperfpga.KatcpTransport)
+            self.host = host
         self.fpga.is_little_endian = True # seems to have issues autodetecting?
-        self.host = host
-        self.logger = logging.getLogger('AtaRfsocFengine')
+        self.logger = logging.getLogger('AtaRfsocFengine%d' % pipeline_id)
         self.logger.setLevel(logging.DEBUG)
         self.feng_id = feng_id
         self.pipeline_id = pipeline_id
+        try:
+            self.sync_select_input(self.pps_source)
+        except:
+            pass
+        try:
+            self.spec_set_pipeline_id()
+        except:
+            pass
         # If the board is programmed, try to get the fpg data
         #if self.is_programmed():
         #    try:
@@ -68,11 +81,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         :param fpgfile: .fpg file containing firmware to be programmed
         :type fpgfile: str
         """
-        # in an abuse of the casperfpga API, only the TapcpTransport has a "force" option
-        if isinstance(self.fpga.transport, casperfpga.TapcpTransport):
-            self.fpga.transport.upload_to_ram_and_program(fpgfile, force=force)
-        else:
-            self.fpga.upload_to_ram_and_program(fpgfile)
+        self.fpga.upload_to_ram_and_program(fpgfile)
         self.fpga.get_system_information(fpgfile)
         self.sync_select_input(self.pps_source)
         self.spec_set_pipeline_id()

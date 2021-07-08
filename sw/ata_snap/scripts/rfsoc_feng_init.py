@@ -63,14 +63,14 @@ config['dest_port'] = list(map(int, config['dest_port'].split(',')))
 
 
 
-transport = casperfpga.KatcpTransport
-
 logger.info("Connecting to %s" % args.host)
 feng_ids = list(map(int, args.feng_ids.split(',')))
 fengs = []
 assert len(feng_ids) <= 4, "Only 1-4 F-Engine IDs supported"
+cfpga = casperfpga.CasperFpga(args.host, transport=casperfpga.KatcpTransport)
+logger.info("Connected")
 for pipeline_id, feng_id in enumerate(feng_ids):
-    fengs += [ata_rfsoc_fengine.AtaRfsocFengine(args.host, feng_id=feng_id, pipeline_id=pipeline_id)]
+    fengs += [ata_rfsoc_fengine.AtaRfsocFengine(cfpga, feng_id=feng_id, pipeline_id=pipeline_id)]
 
 if not args.skipprog:
     logger.info("Programming %s with %s" % (args.host, args.fpgfile))
