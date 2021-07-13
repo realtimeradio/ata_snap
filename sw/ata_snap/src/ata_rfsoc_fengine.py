@@ -457,7 +457,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         slot_start_chan = start_chan
         for p in range(n_packets):
             for s in range(n_slots_per_packet):
-                headers[interface][slot[interface]]['first'] = s==0
+                headers[interface][slot[interface]]['first'] = (s==0) and not blank
                 headers[interface][slot[interface]]['valid'] = True and not blank
                 headers[interface][slot[interface]]['last'] = (s==(n_slots_per_packet-1)) and not blank
                 headers[interface][slot[interface]]['dest'] = dests[p]
