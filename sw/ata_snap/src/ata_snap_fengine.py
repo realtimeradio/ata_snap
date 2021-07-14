@@ -1504,7 +1504,7 @@ class AtaSnapFengine(object):
         self.fpga.write('packetizer%d_ips' % interface, ip_bytestr)
         self.fpga.write('packetizer%d_header' % interface, h_bytestr)
 
-    def _read_headers(self, interface, n_words=None):
+    def _read_headers(self, interface, n_words=None, offset=0):
         """
         Get the header entries from one of this board's packetizers.
 
@@ -1535,8 +1535,8 @@ class AtaSnapFengine(object):
 
         if n_words is None:
             n_words = self.n_chans_f * self.n_times_per_packet * self.n_pols // self.tge_n_samples_per_word // self.packetizer_granularity
-        hs_raw = self.fpga.read('packetizer%d_header' % interface, 8*n_words)
-        ips_raw = self.fpga.read('packetizer%d_ips' % interface, 4*n_words)
+        hs_raw = self.fpga.read('packetizer%d_header' % interface, 8*n_words, offset=8*offset)
+        ips_raw = self.fpga.read('packetizer%d_ips' % interface, 4*n_words, offset=4*offset)
         hs = struct.unpack('>%dQ' % n_words, hs_raw)
         ips = struct.unpack('>%dI' % n_words, ips_raw)
         headers = []
