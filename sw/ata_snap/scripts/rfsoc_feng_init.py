@@ -13,8 +13,8 @@ def run(host, fpgfile, configfile,
         sync=False,
         mansync=False,
         tvg=False,
-        feng_ids='0,1,2,3',
-        dest_port='10000,10001,10002,10003,10004,10005,10006,10007',
+        feng_ids=[0,1,2,3],
+        dest_port=[10000,10001,10002,10003,10004,10005,10006,10007],
         skipprog=False,
         eth_spec=False,
         noblank=False,
@@ -39,12 +39,10 @@ def run(host, fpgfile, configfile,
     config['acclen'] = acclen or config['acclen']
     config['spectrometer_dest'] = specdest or config['spectrometer_dest']
     config['dest_port'] = dest_port or config['dest_port']
-    config['dest_port'] = list(map(int, config['dest_port'].split(',')))
-
-
+    if isinstance(config['dest_port'], str):
+        config['dest_port'] = list(map(int, config['dest_port'].split(',')))
 
     logger.info("Connecting to %s" % host)
-    feng_ids = list(map(int, feng_ids.split(',')))
     fengs = []
     assert len(feng_ids) <= 4, "Only 1-4 F-Engine IDs supported"
     cfpga = casperfpga.CasperFpga(host, transport=casperfpga.KatcpTransport)
@@ -194,10 +192,10 @@ if __name__ == '__main__':
                         help ='Use this flag to issue an internal sync rather than using a PPS')
     parser.add_argument('-t', dest='tvg', action='store_true', default=False,
                         help ='Use this flag to switch to post-fft test vector outputs')
-    parser.add_argument('-i', dest='feng_ids', type=str, default='0,1,2,3',
+    parser.add_argument('-i', dest='feng_ids', type=int, nargs='*', default=[0,1,2,3],
                         help='Comma separated list of F-engine IDs to write to this SNAP\'s output packets')
-    parser.add_argument('-p', dest='dest_port', type=str,
-                        default='10000,10001,10002,10003,10004,10005,10006,10007',
+    parser.add_argument('-p', dest='dest_port', type=int, nargs='*',
+                        default=[10000,10001,10002,10003,10004,10005,10006,10007],
                         help='Comma-separated 100 GBe destination ports. One per F-engine')
     parser.add_argument('--skipprog', dest='skipprog', action='store_true', default=False,
                         help='Skip programming .fpg file')
@@ -215,6 +213,7 @@ if __name__ == '__main__':
             help ='Destination IP address to which spectra should be sent. Default: get from config file')
 
     args = parser.parse_args()
+
     run(args.host, args.fpgfile, args.configfile,
         sync=args.sync,
         mansync=args.mansync,
