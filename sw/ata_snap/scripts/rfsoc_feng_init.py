@@ -132,7 +132,7 @@ def run(host, fpgfile, configfile,
             logger.info('Destination IPs: %s' %dests)
             logger.info('Using %d interfaces' % n_interfaces)
             for fn, feng in enumerate(fengs):
-                dest_port = config['dest_port'][fn]
+                dest_port = config['dest_port'][fn] if isinstance(config['dest_port'], list) else config['dest_port']
                 dest_ports = [dest_port for _ in range(len(dests))]
                 output = feng.select_output_channels(start_chan, n_chans, dests, n_interfaces=n_interfaces, dest_ports=dest_ports)
                 print(output)
@@ -140,7 +140,7 @@ def run(host, fpgfile, configfile,
             orig_pipeline_id = fengs[-1].pipeline_id
             orig_feng_id = fengs[-1].feng_id
             for pipeline_id in range(orig_pipeline_id+1, fengs[-1].n_ants_per_board):
-                dest_port = config['dest_port'][pipeline_id]
+                dest_port = config['dest_port'][pipeline_id] if isinstance(config['dest_port'], list) else config['dest_port']
                 dest_ports = [dest_port for _ in range(len(dests))]
                 fengs[-1].feng_id = -1
                 fengs[-1].pipeline_id = pipeline_id
