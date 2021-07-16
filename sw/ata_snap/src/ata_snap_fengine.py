@@ -1291,16 +1291,16 @@ class AtaSnapFengine(object):
         # For now, we only consider case with time the faster axis.
         times_per_word = 64 // (2*2*n_bits)
         # This should always be True for reasonable firmware
-        assert self.packetizer_granularity % times_per_word == 0
+        assert self.packetizer_granularity % times_per_word == 0, "{} % {} != 0".format(self.packetizer_granularity, times_per_word)
         packetizer_chan_granularity = self.packetizer_granularity // times_per_word
 
         # We reorder n_chans_per_block as parallel words, so must deal with
         # start / stop points with that granularity
-        assert start_chan % self.n_chans_per_block == 0
+        assert start_chan % self.n_chans_per_block == 0, "{} % {} != 0".format(start_chan, self.n_chans_per_block)
         n_dests = len(dests)
         # Also Demand that the number of channels can be equally divided
         # among the destination addresses
-        assert n_chans % (n_dests * self.n_chans_per_block) == 0
+        assert n_chans % (n_dests * self.n_chans_per_block) == 0, "{} % {} != 0".format(n_chans, (n_dests * self.n_chans_per_block))
         # Number of channels per destination is now gauranteed to be an integer
         # multiple of n_chans_per_block
         n_chans_per_destination = n_chans // n_dests
@@ -1308,15 +1308,15 @@ class AtaSnapFengine(object):
         # packets
         n_packets_per_destination = int(np.ceil(n_chans_per_destination / max_chans_per_packet))
         # Channels should be able to be divided up into packets equally
-        assert n_chans_per_destination % n_packets_per_destination == 0
+        assert n_chans_per_destination % n_packets_per_destination == 0, "{} % {} != 0".format(n_chans_per_destination, n_packets_per_destination)
         n_chans_per_packet = n_chans_per_destination  // n_packets_per_destination
         # Number of channels per packet should be a multiple of the reorder granularity
-        assert n_chans_per_packet % self.n_chans_per_block == 0
+        assert n_chans_per_packet % self.n_chans_per_block == 0, "{} % {} != 0".format(n_chans_per_packet, self.n_chans_per_block)
         # Number of channels per packet should be a multiple of packetizer granularity
-        assert n_chans_per_packet % packetizer_chan_granularity == 0
+        assert n_chans_per_packet % packetizer_chan_granularity == 0, "{} % {} != 0".format(n_chans_per_packet, packetizer_chan_granularity)
         n_slots_per_packet = n_chans_per_packet // packetizer_chan_granularity
         # Can't send more than all the channels!
-        assert start_chan + n_chans <= self.n_chans_f
+        assert start_chan + n_chans <= self.n_chans_f, "{} > {}".format(start_chan + n_chans, self.n_ch)
 
         self.logger.info('Start channel: %d' % start_chan)
         self.logger.info('Number of channels to send: %d' % n_chans)
@@ -1361,7 +1361,7 @@ class AtaSnapFengine(object):
         # How many slots packetizer blocks do we need to use?
         # Lazily force data rate out of each interface to be the same
         n_packets = len(dup_dests)
-        assert n_packets % n_interfaces == 0, "Number of destination packets (%d) does not divide evenly betweed %d interfaces" % n(n_packets, _interfaces)
+        assert n_packets % n_interfaces == 0, "Number of destination packets (%d) does not divide evenly betweed %d interfaces" % (n_packets, n_interfaces)
         available_blocks = packetizer_n_blocks * n_interfaces
         needed_blocks = n_chans // packetizer_chan_granularity
         spare_blocks = available_blocks - needed_blocks
