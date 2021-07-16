@@ -580,7 +580,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         :return: headers
         :rtype: list
         """
-        pipeline_n_words = self.n_chans_f * self.n_times_per_packet * self.n_pols // self.tge_n_samples_per_word // self.packetizer_granularity
+        pipeline_n_words = self.n_ants_per_board * self.n_chans_f * self.n_times_per_packet * self.n_pols // self.tge_n_samples_per_word // self.packetizer_granularity
         if n_words is None:
             n_words = pipeline_n_words
         if offset is None:
