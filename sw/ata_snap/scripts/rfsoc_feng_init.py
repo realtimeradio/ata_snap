@@ -14,6 +14,7 @@ def run(host, fpgfile, configfile,
         mansync=False,
         tvg=False,
         feng_ids='0,1,2,3',
+        pipeline_ids='0,1,2,3',
         dest_port='10000,10001,10002,10003,10004,10005,10006,10007',
         skipprog=False,
         eth_spec=False,
@@ -45,11 +46,13 @@ def run(host, fpgfile, configfile,
 
     logger.info("Connecting to %s" % host)
     feng_ids = list(map(int, feng_ids.split(',')))
+    pipeline_ids = list(map(int, pipeline_ids.split(',')))
     fengs = []
     assert len(feng_ids) <= 4, "Only 1-4 F-Engine IDs supported"
+    assert len(pipeline_ids) == len(feng_ids), "pipeline_ids and feng_ids should have the same length"
     cfpga = casperfpga.CasperFpga(host, transport=casperfpga.KatcpTransport)
     logger.info("Connected")
-    for pipeline_id, feng_id in enumerate(feng_ids):
+    for pipeline_id, feng_id in zip(pipeline_ids, feng_ids):
         fengs += [ata_rfsoc_fengine.AtaRfsocFengine(cfpga, feng_id=feng_id, pipeline_id=pipeline_id)]
 
     if not skipprog:
@@ -196,6 +199,8 @@ if __name__ == '__main__':
                         help ='Use this flag to switch to post-fft test vector outputs')
     parser.add_argument('-i', dest='feng_ids', type=str, default='0,1,2,3',
                         help='Comma separated list of F-engine IDs to write to this SNAP\'s output packets')
+    parser.add_argument('-j', dest='pipeline_ids', type=str, default='0,1,2,3',
+                        help='Comma separated list of pipeline IDs to associate an F-eng with a pipeline instance')
     parser.add_argument('-p', dest='dest_port', type=str,
                         default='10000,10001,10002,10003,10004,10005,10006,10007',
                         help='Comma-separated 100 GBe destination ports. One per F-engine')
@@ -220,6 +225,7 @@ if __name__ == '__main__':
         mansync=args.mansync,
         tvg=args.tvg,
         feng_ids=args.feng_ids,
+        pipeline_ids=args.pipeline_ids,
         dest_port=args.dest_port,
         skipprog=args.skipprog,
         eth_spec=args.eth_spec,
