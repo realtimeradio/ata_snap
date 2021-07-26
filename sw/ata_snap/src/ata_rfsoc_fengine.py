@@ -566,6 +566,28 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         assert self.fpga.read('packetizer%d_ports' % interface, len(port_bytestr), offset=2*offset) == port_bytestr, "Readback failed!"
         assert self.fpga.read('packetizer%d_header' % interface, len(h_bytestr), offset=8*offset) == h_bytestr, "Readback failed!"
 
+    def _read_headers(self, interface, n_words=None, offset=None):
+        """
+        Get the header entries from one of this board's packetizers.
+        In lieu of n_words or offset, either/both are calculated for
+        the pipeline_id as per self.pipeline_id. Providing either
+        overrules this calculation.
+        Calls ata_snap_fengine.AtaSnapFengine._read_headers().
+
+        :param interface: The 10GbE interface to populate
+        :type interface: int
+        
+        :return: headers
+        :rtype: list
+        """
+        bus_width_multiplier = self.tge_n_samples_per_word // 8
+        pipeline_n_words = self.n_chans_f * self.n_times_per_packet * self.n_pols // self.tge_n_samples_per_word // (self.packetizer_granularity // bus_width_multiplier)
+        if n_words is None:
+            n_words = pipeline_n_words
+        if offset is None:
+            offset = self.pipeline_id*pipeline_n_words
+        return super()._read_headers(interface, n_words, offset)
+
     def _reorder_channels(self, order, transpose_time=True):
         """
         Reorder the channels such that the channel order[i]
