@@ -13,9 +13,9 @@ def run(host, fpgfile, configfile,
         sync=False,
         mansync=False,
         tvg=False,
-        feng_ids='0,1,2,3',
-        pipeline_ids='0,1,2,3',
-        dest_port='10000,10001,10002,10003,10004,10005,10006,10007',
+        feng_ids=[0,1,2,3],
+        pipeline_ids=[0,1,2,3],
+        dest_port=[10000,10001,10002,10003,10004,10005,10006,10007],
         skipprog=False,
         eth_spec=False,
         noblank=False,
@@ -40,13 +40,10 @@ def run(host, fpgfile, configfile,
     config['acclen'] = acclen or config['acclen']
     config['spectrometer_dest'] = specdest or config['spectrometer_dest']
     config['dest_port'] = dest_port or config['dest_port']
-    config['dest_port'] = list(map(int, config['dest_port'].split(',')))
-
-
+    if isinstance(config['dest_port'], str):
+        config['dest_port'] = list(map(int, config['dest_port'].split(',')))
 
     logger.info("Connecting to %s" % host)
-    feng_ids = list(map(int, feng_ids.split(',')))
-    pipeline_ids = list(map(int, pipeline_ids.split(',')))
     fengs = []
     assert len(feng_ids) <= 4, "Only 1-4 F-Engine IDs supported"
     assert len(pipeline_ids) == len(feng_ids), "pipeline_ids and feng_ids should have the same length"
@@ -137,7 +134,7 @@ def run(host, fpgfile, configfile,
             logger.info('Destination IPs: %s' %dests)
             logger.info('Using %d interfaces' % n_interfaces)
             for fn, feng in enumerate(fengs):
-                dest_port = config['dest_port'][fn]
+                dest_port = config['dest_port'][fn] if isinstance(config['dest_port'], list) else config['dest_port']
                 dest_ports = [dest_port for _ in range(len(dests))]
                 output = feng.select_output_channels(start_chan, n_chans, dests, n_interfaces=n_interfaces, dest_ports=dest_ports)
                 print(output)
@@ -145,7 +142,7 @@ def run(host, fpgfile, configfile,
             orig_pipeline_id = fengs[-1].pipeline_id
             orig_feng_id = fengs[-1].feng_id
             for pipeline_id in range(orig_pipeline_id+1, fengs[-1].n_ants_per_board):
-                dest_port = config['dest_port'][pipeline_id]
+                dest_port = config['dest_port'][pipeline_id] if isinstance(config['dest_port'], list) else config['dest_port']
                 dest_ports = [dest_port for _ in range(len(dests))]
                 fengs[-1].feng_id = -1
                 fengs[-1].pipeline_id = pipeline_id
@@ -197,13 +194,13 @@ if __name__ == '__main__':
                         help ='Use this flag to issue an internal sync rather than using a PPS')
     parser.add_argument('-t', dest='tvg', action='store_true', default=False,
                         help ='Use this flag to switch to post-fft test vector outputs')
-    parser.add_argument('-i', dest='feng_ids', type=str, default='0,1,2,3',
-                        help='Comma separated list of F-engine IDs to write to this SNAP\'s output packets')
-    parser.add_argument('-j', dest='pipeline_ids', type=str, default='0,1,2,3',
-                        help='Comma separated list of pipeline IDs to associate an F-eng with a pipeline instance')
-    parser.add_argument('-p', dest='dest_port', type=str,
-                        default='10000,10001,10002,10003,10004,10005,10006,10007',
-                        help='Comma-separated 100 GBe destination ports. One per F-engine')
+    parser.add_argument('-i', dest='feng_ids', type=int, nargs='*', default=[0,1,2,3],
+                        help='List of F-engine IDs to write to this SNAP\'s output packets')
+    parser.add_argument('-j', dest='pipeline_ids', type=int, nargs='*', default=[0,1,2,3],
+                        help='List of pipeline IDs to associate an F-eng with a pipeline instance')
+    parser.add_argument('-p', dest='dest_port', type=int, nargs='*',
+                        default=[10000,10001,10002,10003,10004,10005,10006,10007],
+                        help='100 GBe destination ports. One per F-engine')
     parser.add_argument('--skipprog', dest='skipprog', action='store_true', default=False,
                         help='Skip programming .fpg file')
     parser.add_argument('--eth_spec', dest='eth_spec', action='store_true', default=False,
@@ -220,6 +217,7 @@ if __name__ == '__main__':
             help ='Destination IP address to which spectra should be sent. Default: get from config file')
 
     args = parser.parse_args()
+
     run(args.host, args.fpgfile, args.configfile,
         sync=args.sync,
         mansync=args.mansync,
