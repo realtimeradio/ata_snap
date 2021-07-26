@@ -15,7 +15,7 @@ def run(host, fpgfile, configfile,
         tvg=False,
         feng_ids=[0,1,2,3],
         pipeline_ids=[0,1,2,3],
-        dest_port=[10000,10001,10002,10003,10004,10005,10006,10007],
+        dest_port=None,
         skipprog=False,
         eth_spec=False,
         noblank=False,
@@ -198,9 +198,9 @@ if __name__ == '__main__':
                         help='List of F-engine IDs to write to this SNAP\'s output packets')
     parser.add_argument('-j', dest='pipeline_ids', type=int, nargs='*', default=[0,1,2,3],
                         help='List of pipeline IDs to associate an F-eng with a pipeline instance')
-    parser.add_argument('-p', dest='dest_port', type=int, nargs='*',
-                        default=[10000,10001,10002,10003,10004,10005,10006,10007],
-                        help='100 GBe destination ports. One per F-engine')
+    parser.add_argument('-p', dest='dest_port', type=str,
+                        default=None,
+                        help='Comma-separated 100 GBe destination ports. One per F-engine [defaults to config file].')
     parser.add_argument('--skipprog', dest='skipprog', action='store_true', default=False,
                         help='Skip programming .fpg file')
     parser.add_argument('--eth_spec', dest='eth_spec', action='store_true', default=False,
