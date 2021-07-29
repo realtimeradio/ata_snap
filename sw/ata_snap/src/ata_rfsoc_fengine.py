@@ -240,7 +240,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
                     "loaded bitstream prior to trying to snapshot data")
         self.fpga.write_int('sel0', self.pipeline_id)
         dx, t = self.fpga.snapshots.ss_adc0.read_raw(man_trig=True, man_valid=True)
-        self.fpga.write_int('sel1', self.pipeline_id + 8)
+        self.fpga.write_int('sel0', self.pipeline_id + 8)
         dy, t = self.fpga.snapshots.ss_adc0.read_raw(man_trig=True, man_valid=True)
         x = struct.unpack(">%dh" % (dx['length']//2), dx['data'])
         y = struct.unpack(">%dh" % (dy['length']//2), dy['data'])
