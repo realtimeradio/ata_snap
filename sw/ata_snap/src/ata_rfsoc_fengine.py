@@ -145,19 +145,15 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
 
         assert mode in ["auto", "cross"]
         if mode == "auto":
-            v = 0
+            v = [(1<<8) + 1, (2<<8) + 2] # X auto then Y auto
         else:
-            v = 1
+            v = [(1<<8) + 2] # X-Y cross
         devs = self.fpga.listdev()
         for i in range(self.n_ants_per_board):
-            regname = 'pipeline%d_corr_enable_ss_output' % i
+            regname = 'pipeline%d_enable_ss_output' % i
             if regname not in devs:
                 continue
-            if i == self.pipeline_id:
-                self.fpga.write_int(regname, 1)
-            else:
-                self.fpga.write_int(regname, 0)
-        self.fpga.write_int("vacc_ss_sel", v)
+            self.fpga.write_int(regname, 0)
         ss0 = self.fpga.snapshots['vacc_ss_ss0']
         ss1 = self.fpga.snapshots['vacc_ss_ss1']
         ss2 = self.fpga.snapshots['vacc_ss_ss2']
@@ -167,43 +163,18 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         if normalize:
             acc_len = self.get_accumulation_length()
 
-        if flush:
-            ss0.read_raw()
-
-        ss0.arm() # This arms all RAMs
-        d0, t0 = ss0.read_raw(arm=False)
-        d1, t1 = ss1.read_raw(arm=False)
-        d2, t2 = ss2.read_raw(arm=False)
-        d3, t3 = ss3.read_raw(arm=False)
-        d0i = struct.unpack(">%dq" % (d0["length"] // 8), d0["data"])
-        d1i = struct.unpack(">%dq" % (d1["length"] // 8), d1["data"])
-        d2i = struct.unpack(">%dq" % (d2["length"] // 8), d2["data"])
-        d3i = struct.unpack(">%dq" % (d3["length"] // 8), d3["data"])
-        if mode == "auto":
-            xx_0  = d0i[0::2]
-            xx_1  = d1i[0::2]
-            xx_2  = d2i[0::2]
-            xx_3  = d3i[0::2]
-            yy_0  = d0i[1::2]
-            yy_1  = d1i[1::2]
-            yy_2  = d2i[1::2]
-            yy_3  = d3i[1::2]
-            xx = np.zeros(self.n_chans_f, dtype=np.int64)
-            yy = np.zeros(self.n_chans_f, dtype=np.int64)
-            for i in range(self.n_chans_f // 4):
-                xx[4*i]   = xx_0[i]
-                xx[4*i+1] = xx_1[i]
-                xx[4*i+2] = xx_2[i]
-                xx[4*i+3] = xx_3[i]
-                yy[4*i]   = yy_0[i]
-                yy[4*i+1] = yy_1[i]
-                yy[4*i+2] = yy_2[i]
-                yy[4*i+3] = yy_3[i]
-            if normalize:
-                xx = xx / float(SCALE * acc_len)
-                yy = yy / float(SCALE * acc_len)
-            return xx, yy
-        elif mode == "cross":
+        def grab(muxval):
+            self.fpga.write_int('pipeline%d_enable_ss_output' % self.pipeline_id, muxval)
+            ss0.read_raw() # always flush
+            ss0.arm() # This arms all RAMs
+            d0, t0 = ss0.read_raw(arm=False)
+            d1, t1 = ss1.read_raw(arm=False)
+            d2, t2 = ss2.read_raw(arm=False)
+            d3, t3 = ss3.read_raw(arm=False)
+            d0i = struct.unpack(">%dq" % (d0["length"] // 8), d0["data"])
+            d1i = struct.unpack(">%dq" % (d1["length"] // 8), d1["data"])
+            d2i = struct.unpack(">%dq" % (d2["length"] // 8), d2["data"])
+            d3i = struct.unpack(">%dq" % (d3["length"] // 8), d3["data"])
             xy_0_r = d0i[0::2]
             xy_0_i = d0i[1::2]
             xy_1_r = d1i[0::2]
@@ -220,6 +191,14 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
                 xy[4*i+3] = xy_3_r[i] + 1j*xy_3_i[i]
             if normalize:
                 xy = xy / float(SCALE * acc_len)
+            return xy
+
+        if mode == "auto":
+            xx = np.abs(grab(v[0]))
+            yy = np.abs(grab(v[1]))
+            return xx, yy
+        else:
+            xy = grab(v[0])
             return xy
 
     def adc_get_samples(self):

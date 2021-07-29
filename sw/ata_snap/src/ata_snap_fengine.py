@@ -935,7 +935,7 @@ class AtaSnapFengine(object):
             self.logger.info("Turning ON Spectrometer test-vectors")
         else:
             self.logger.info("Turning OFF Spectrometer test-vectors")
-        self.fpga.write_int(self._pipeline_get_regname('spec_tvg_tvg_en'), int(enable))
+        self.fpga.write_int('spec_tvg_tvg_en', int(enable))
 
     def spec_read(self, mode="auto", flush=False, normalize=False):
         """

@@ -166,6 +166,8 @@ def run(host, fpgfile, configfile,
         if not mansync:
             fengs[0].sync_wait_for_pps()
         fengs[0].sync_arm(manual_trigger=mansync)
+        for fn, feng in enumerate(fengs):
+            feng.fft_of_detect_reset()
 
     # Reset ethernet cores prior to enabling
     fengs[0].eth_reset()
