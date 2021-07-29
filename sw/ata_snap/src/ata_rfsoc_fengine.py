@@ -92,6 +92,23 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         else:
             pass
 
+    def fft_of_detect(self):
+        """
+        Read the FFT overflow detection register. Will return True if
+        an overflow has been detected since the last reset. False otherwise.
+
+        :return: True if FFT overflowed since the last reset accumulation period, False otherwise.
+        :rtype: bool
+        """
+        return bool(self.fpga.read_uint(self._pipeline_get_regname('pfb_fft_of')))
+
+    def fft_of_detect_reset(self):
+        """
+        Reset the FFT overflow detection register.
+        """
+        self.fpga.write_int(self._pipeline_get_regname('pfb_fft_of_cnt_rst'), 1)
+        self.fpga.write_int(self._pipeline_get_regname('pfb_fft_of_cnt_rst'), 0)
+
     def spec_read(self, mode="auto", flush=False, normalize=False):
         """
         Read a single accumulated spectrum.
@@ -222,9 +239,9 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
                     "AtaRfsocFengine.fpga.get_system_information(...) with the "
                     "loaded bitstream prior to trying to snapshot data")
         self.fpga.write_int('sel0', self.pipeline_id)
-        self.fpga.write_int('sel1', self.pipeline_id + 8)
         dx, t = self.fpga.snapshots.ss_adc0.read_raw(man_trig=True, man_valid=True)
-        dy, t = self.fpga.snapshots.ss_adc1.read_raw(man_trig=True, man_valid=True)
+        self.fpga.write_int('sel1', self.pipeline_id + 8)
+        dy, t = self.fpga.snapshots.ss_adc0.read_raw(man_trig=True, man_valid=True)
         x = struct.unpack(">%dh" % (dx['length']//2), dx['data'])
         y = struct.unpack(">%dh" % (dy['length']//2), dy['data'])
         return x, y
