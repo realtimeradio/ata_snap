@@ -137,7 +137,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             spectrum of Xconj(Y).
         :rtype: numpy.array
         """
-        SCALE = 2**48 # Vacc number representation
+        SCALE = 2**42 # Vacc number representation
         if len(self.fpga.snapshots) == 0:
             raise RuntimeError("Please run AtaSnapFengine.program(...) or "
                     "AtaSnapFengine.fpga.get_system_information(...) with the "
