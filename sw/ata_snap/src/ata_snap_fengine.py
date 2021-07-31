@@ -1059,7 +1059,7 @@ class AtaSnapFengine(object):
         freq_range = np.linspace(0, self.sync_get_adc_clk_freq() / 2, self.n_chans_f + 1)[0:-1]
         if mode == "auto":
             self.logger.info("Grabbing auto-correlation spectra")
-            x, y = self.spec_read(mode=mode)
+            x, y = self.spec_read(mode=mode, normalize=True)
             self.logger.info("Plotting spectra")
             plt.figure()
             plt.subplot(2,1,1)
@@ -1075,7 +1075,7 @@ class AtaSnapFengine(object):
             plt.show()
         elif mode == "cross":
             self.logger.info("Grabbing auto-correlation spectrum")
-            xy = self.spec_read(mode=mode)
+            xy = self.spec_read(mode=mode, normalize=True)
             self.logger.info("Plotting spectra")
             plt.figure()
             plt.subplot(2,1,1)
