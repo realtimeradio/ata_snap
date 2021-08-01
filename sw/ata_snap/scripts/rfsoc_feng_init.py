@@ -45,7 +45,7 @@ def run(host, fpgfile, configfile,
 
     logger.info("Connecting to %s" % host)
     fengs = []
-    assert len(feng_ids) <= 4, "Only 1-4 F-Engine IDs supported"
+    assert len(feng_ids) <= 8, "Only 1-8 F-Engine IDs supported"
     assert len(pipeline_ids) == len(feng_ids), "pipeline_ids and feng_ids should have the same length"
     cfpga = casperfpga.CasperFpga(host, transport=casperfpga.KatcpTransport)
     logger.info("Connected")
