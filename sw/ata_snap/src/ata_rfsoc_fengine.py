@@ -184,11 +184,13 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             xy_3_r = d3i[0::2]
             xy_3_i = d3i[1::2]
             xy = np.zeros(self.n_chans_f, dtype=np.complex)
+            # Do final FFT serial reorder in software
+            chan_map = np.arange(self.n_chans_f // 4).reshape(self.n_chans_f // 4 // 4, 4).transpose().reshape(self.n_chans_f // 4)
             for i in range(self.n_chans_f // 4):
-                xy[4*i]   = xy_0_r[i] + 1j*xy_0_i[i]
-                xy[4*i+1] = xy_1_r[i] + 1j*xy_1_i[i]
-                xy[4*i+2] = xy_2_r[i] + 1j*xy_2_i[i]
-                xy[4*i+3] = xy_3_r[i] + 1j*xy_3_i[i]
+                xy[4*i]   = xy_0_r[chan_map[i]] + 1j*xy_0_i[chan_map[i]]
+                xy[4*i+1] = xy_1_r[chan_map[i]] + 1j*xy_1_i[chan_map[i]]
+                xy[4*i+2] = xy_2_r[chan_map[i]] + 1j*xy_2_i[chan_map[i]]
+                xy[4*i+3] = xy_3_r[chan_map[i]] + 1j*xy_3_i[chan_map[i]]
             if normalize:
                 xy = xy / float(SCALE * acc_len)
             return xy

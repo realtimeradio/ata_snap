@@ -76,7 +76,7 @@ def run(host, fpgfile, configfile,
     #        feng.fpga.write_int("pfb_fft_shift", fft_shift)
 
     # Disable ethernet output before doing anything
-    fengs[0].eth_enable_output(False)
+    #fengs[0].eth_enable_output(False)
 
     fengs[0].set_accumulation_length(config['acclen'])
 
@@ -105,20 +105,21 @@ def run(host, fpgfile, configfile,
         print("Failed to set Voltage test vector mode!")
         pass
 
-    # Configure arp table
-    for ip, mac in config['arp'].items():
-        print ("Configuring ip: %s with mac: %x" %(ip, mac))
-        for ethn, eth in enumerate(fengs[0].fpga.gbes):
-            eth.set_single_arp_entry(ip, mac)
+    if eth_spec or eth_volt:
+        # Configure arp table
+        for ip, mac in config['arp'].items():
+            print ("Configuring ip: %s with mac: %x" %(ip, mac))
+            for ethn, eth in enumerate(fengs[0].fpga.gbes):
+                eth.set_single_arp_entry(ip, mac)
 
-    voltage_config = config.get('voltage_output', None)
-    n_interfaces = voltage_config.get('n_interfaces', fengs[0].n_interfaces)
-    for i in range(n_interfaces):
-        ip = config["interfaces"][fengs[0].fpga.host][i]
-        mac = config["arp"][ip]
-        port = 10000
-        eth = fengs[0].fpga.gbes['eth%i_onehundred_gbe' %i]
-        eth.configure_core(mac, ip, port)
+        voltage_config = config.get('voltage_output', None)
+        n_interfaces = voltage_config.get('n_interfaces', fengs[0].n_interfaces)
+        for i in range(n_interfaces):
+            ip = config["interfaces"][fengs[0].fpga.host][i]
+            mac = config["arp"][ip]
+            port = 10000
+            eth = fengs[0].fpga.gbes['eth%i_onehundred_gbe' %i]
+            eth.configure_core(mac, ip, port)
 
     if eth_spec:
         for feng in fengs:
@@ -170,8 +171,8 @@ def run(host, fpgfile, configfile,
             feng.fft_of_detect_reset()
 
     # Reset ethernet cores prior to enabling
-    fengs[0].eth_reset()
     if eth_spec or eth_volt:
+        fengs[0].eth_reset()
         logger.info('Enabling Ethernet output')
         fengs[0].eth_enable_output(True)
     else:
