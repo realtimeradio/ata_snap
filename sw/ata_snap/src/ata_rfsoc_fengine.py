@@ -462,8 +462,10 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # spectra using a programmable reorder. This reorder operates on
         # n_chans_f * n_times_per_packet / nchans_per_block words, with each word
         # 8+8 bits x nchans_per_block x 2 [pols] wide.
-
-        assert len(dests) == len(dest_ports), "Length of ``dests`` list and ``dest_ports`` list must be the same"
+        if isinstance(dest_ports, list):
+            assert len(dests) == len(dest_ports), "Length of ``dests`` list and ``dest_ports`` list must be the same"
+        else:
+            dest_ports = [dest_ports for _ in range(len(dests))]
 
         # In RFSoC designs, all channels transit a single interface.
         # Multiple interface may be used for different antennas, but that is accomodated elsewhere
