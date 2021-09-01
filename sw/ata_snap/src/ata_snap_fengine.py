@@ -1326,7 +1326,7 @@ class AtaSnapFengine(object):
             self._populate_headers(interface, headers)
         
 
-    def select_output_channels(self, start_chan, n_chans, dests=['0.0.0.0'], n_interfaces=None, n_bits=4):
+    def select_output_channels(self, start_chan, n_chans, dests=['0.0.0.0'], n_interfaces=None, n_bits=4, nchans_per_packet_limit=None):
         """
         Select the range of channels which the voltage pipeline should output.
 
@@ -1346,6 +1346,9 @@ class AtaSnapFengine(object):
         :param n_interfaces: Number of 10GbE interfaces to use. Should be <= self.n_interfaces
             Default to using all available interfaces.
         :type n_interface: int
+        :param nchans_per_packet_limit: If not None, limits the number of channels per packet to
+            min(nchans_per_packet_limit, actual-maximum).
+        :type nchans_per_packet_limit: int
 
         :raises AssertionError: If the following conditions aren't met:
             `start_chan` should be a multiple of self.n_chans_per_block (4)
@@ -1407,6 +1410,8 @@ class AtaSnapFengine(object):
         # size is 8 kByte + header
         assert n_bits in [4,8], "Only 4- or 8-bit output modes are supported!"
         max_chans_per_packet = 8*8192 // (2*n_bits) // self.n_times_per_packet // 2
+        if nchans_per_packet_limit is not None:
+            max_chans_per_packet = min(max_chans_per_packet, nchans_per_packet_limit)
 
         if n_bits == 8:
             raise NotImplementedError("8-bit mode not yet implemented")
