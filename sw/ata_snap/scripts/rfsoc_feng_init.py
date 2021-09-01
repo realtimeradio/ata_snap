@@ -45,7 +45,7 @@ def run(host, fpgfile, configfile,
 
     logger.info("Connecting to %s" % host)
     fengs = []
-    assert len(feng_ids) <= 8, "Only 1-8 F-Engine IDs supported"
+    assert len(feng_ids) <= 8, "At most 8 F-Engine IDs supported"
     assert len(pipeline_ids) == len(feng_ids), "pipeline_ids and feng_ids should have the same length"
     cfpga = casperfpga.CasperFpga(host, transport=casperfpga.KatcpTransport)
     logger.info("Connected")
@@ -131,25 +131,26 @@ def run(host, fpgfile, configfile,
             n_chans = voltage_config['n_chans']
             start_chan = voltage_config['start_chan']
             dests = voltage_config['dests']
+            dests_is_antgroup_list_of_dests = isinstance(dests[0], list)
             logger.info('Voltage output sending channels %d to %d' % (start_chan, start_chan+n_chans-1))
             logger.info('Destination IPs: %s' %dests)
             logger.info('Using %d interfaces' % n_interfaces)
             for fn, feng in enumerate(fengs):
                 dest_port = config['dest_port'][fn] if isinstance(config['dest_port'], list) else config['dest_port']
-                dest_ports = [dest_port for _ in range(len(dests))]
-                output = feng.select_output_channels(start_chan, n_chans, dests, dest_ports=dest_ports)
+                feng_dests = dests if not dests_is_antgroup_list_of_dests else dests[fn]
+                output = feng.select_output_channels(start_chan, n_chans, feng_dests, n_interfaces=n_interfaces, dest_ports=dest_port)
                 print(output)
             # hack to fill in channel reorder map for unused F-engines
             orig_pipeline_id = fengs[-1].pipeline_id
             orig_feng_id = fengs[-1].feng_id
-            for pipeline_id in range(orig_pipeline_id+1, fengs[-1].n_ants_per_board):
-                print("balnking out pipeline id %d" % pipeline_id)
+            for fn, pipeline_id in enumerate(range(orig_pipeline_id+1, fengs[-1].n_ants_per_board)):
+                print("blanking out pipeline id %d" % pipeline_id)
                 dest_port = config['dest_port'][pipeline_id] if isinstance(config['dest_port'], list) else config['dest_port']
-                dest_ports = [dest_port for _ in range(len(dests))]
+                feng_dests = dests if not dests_is_antgroup_list_of_dests else dests[fn]
                 fengs[-1].feng_id = -1
                 fengs[-1].pipeline_id = pipeline_id
                 fengs[-1]._calc_output_ids()
-                fengs[-1].select_output_channels(start_chan, n_chans, dests, dest_ports=dest_ports, blank=not noblank)
+                fengs[-1].select_output_channels(start_chan, n_chans, feng_dests, n_interfaces=n_interfaces, dest_ports=dest_port, blank=not noblank)
             fengs[-1].pipeline_id = orig_pipeline_id
             fengs[-1].feng_id = orig_feng_id
             fengs[-1]._calc_output_ids()
