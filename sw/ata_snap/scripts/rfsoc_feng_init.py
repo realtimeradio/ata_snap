@@ -132,13 +132,14 @@ def run(host, fpgfile, configfile,
             start_chan = voltage_config['start_chan']
             dests = voltage_config['dests']
             dests_is_antgroup_list_of_dests = isinstance(dests[0], list)
+            chans_per_packet_limit = voltage_config['limit_chans_per_packet'] if 'limit_chans_per_packet'  in voltage_config else None
             logger.info('Voltage output sending channels %d to %d' % (start_chan, start_chan+n_chans-1))
             logger.info('Destination IPs: %s' %dests)
             logger.info('Using %d interfaces' % n_interfaces)
             for fn, feng in enumerate(fengs):
                 dest_port = config['dest_port'][fn] if isinstance(config['dest_port'], list) else config['dest_port']
                 feng_dests = dests if not dests_is_antgroup_list_of_dests else dests[fn]
-                output = feng.select_output_channels(start_chan, n_chans, feng_dests, n_interfaces=n_interfaces, dest_ports=dest_port)
+                output = feng.select_output_channels(start_chan, n_chans, feng_dests, n_interfaces=n_interfaces, dest_ports=dest_port, nchans_per_packet_limit=chans_per_packet_limit)
                 print(output)
             # hack to fill in channel reorder map for unused F-engines
             orig_pipeline_id = fengs[-1].pipeline_id
@@ -150,7 +151,7 @@ def run(host, fpgfile, configfile,
                 fengs[-1].feng_id = -1
                 fengs[-1].pipeline_id = pipeline_id
                 fengs[-1]._calc_output_ids()
-                fengs[-1].select_output_channels(start_chan, n_chans, feng_dests, n_interfaces=n_interfaces, dest_ports=dest_port, blank=not noblank)
+                fengs[-1].select_output_channels(start_chan, n_chans, feng_dests, n_interfaces=n_interfaces, dest_ports=dest_port, blank=not noblank, nchans_per_packet_limit=chans_per_packet_limit)
             fengs[-1].pipeline_id = orig_pipeline_id
             fengs[-1].feng_id = orig_feng_id
             fengs[-1]._calc_output_ids()
