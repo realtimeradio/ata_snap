@@ -279,6 +279,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         :type dests: list of str
 
         :param dest_ports: List of destination UDP ports to which data should be sent.
+            If it is a scalar, a list of duplicates is used.
             The first n_chans / len(dests) will be sent to dest[0], etc..
             The length of this list should be the same as the length of the ``dests`` list.
         :type dests: list of int
