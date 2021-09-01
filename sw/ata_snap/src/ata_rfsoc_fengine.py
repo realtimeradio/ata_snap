@@ -486,7 +486,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # in blocks of packetizer_granularity 64-bit words.
         # For now, we only consider case with time the faster axis.
         times_per_word = self.tge_n_bytes_per_word // (2*2*n_bits // 8)
-        assert times_per_word % self.n_times_per_packet == 0
+        assert self.packetizer_granularity % times_per_word == 0, 'self.packetizer_granularity % times_per_word ({} % {}) != 0'.format(self.packetizer_granularity, times_per_word)
         chans_per_word = times_per_word // self.n_times_per_packet
         self.logger.info("Samples per packetizer word: %d" % times_per_word)
         self.logger.info("Channels per packetizer word: %d" % chans_per_word)
@@ -495,7 +495,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
 
         # We reorder n_chans_per_block as parallel words, so must deal with
         # start / stop points with that granularity
-        assert start_chan % self.n_chans_per_block == 0
+        assert start_chan % self.n_chans_per_block == 0, 'start_chan % self.n_chans_per_block ({} % {}) != 0'.format(start_chan, self.n_chans_per_block)
         n_dests = len(dests)
         self.logger.info("Number of destination addresses is: %d" % n_dests)
         self.logger.info("Number of channels to be sent is: %d" % n_chans)
@@ -504,7 +504,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         self.logger.info("Channels per block is: %d" % self.n_chans_per_block)
         # Also Demand that the number of channels can be equally divided
         # among the destination addresses
-        assert n_chans % (n_dests * self.n_chans_per_block) == 0
+        assert n_chans % (n_dests * self.n_chans_per_block) == 0, 'n_chans % (n_dests * self.n_chans_per_block) ({} % {}) != 0'.format(n_chans, (n_dests * self.n_chans_per_block))
         # Number of channels per destination is now gauranteed to be an integer
         # multiple of n_chans_per_block
         n_chans_per_destination = n_chans // n_dests
@@ -514,16 +514,16 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         n_packets_per_destination = int(np.ceil(n_chans_per_destination / max_chans_per_packet))
         self.logger.info("Number of packets per destination is: %d" % n_packets_per_destination)
         # Channels should be able to be divided up into packets equally
-        assert n_chans_per_destination % n_packets_per_destination == 0
+        assert n_chans_per_destination % n_packets_per_destination == 0, 'n_chans_per_destination % n_packets_per_destination ({} % {}) != 0'.format(n_chans_per_destination, n_packets_per_destination)
         n_chans_per_packet = n_chans_per_destination  // n_packets_per_destination
         # Number of channels per packet should be a multiple of the reorder granularity
-        assert n_chans_per_packet % self.n_chans_per_block == 0
+        assert n_chans_per_packet % self.n_chans_per_block == 0, 'n_chans_per_packet % self.n_chans_per_block ({} % {}) != 0'.format(n_chans_per_packet, self.n_chans_per_block)
         # Number of channels per packet should be a multiple of packetizer granularity
         self.logger.info('Number of channels per packet: %d' % n_chans_per_packet)
-        assert n_chans_per_packet % packetizer_chan_granularity == 0
+        assert n_chans_per_packet % packetizer_chan_granularity == 0, 'n_chans_per_packet % packetizer_chan_granularity ({} % {}) != 0'.format(n_chans_per_packet, packetizer_chan_granularity)
         n_slots_per_packet = n_chans_per_packet // packetizer_chan_granularity
         # Can't send more than all the channels!
-        assert start_chan + n_chans <= self.n_chans_f
+        assert start_chan + n_chans <= self.n_chans_f, 'start_chan + n_chans > self.n_chans_f ({} > {})'.format(start_chan + n_chans, self.n_chans_f)
 
         self.logger.info('Start channel: %d' % start_chan)
         self.logger.info('Number of channels to send: %d' % n_chans)
