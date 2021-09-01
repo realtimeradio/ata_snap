@@ -260,7 +260,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         readback = self.fpga.read(regname, len(tv_8bit_str))
         assert tv_8bit_str == readback, "Readback failed!"
 
-    def select_output_channels(self, start_chan, n_chans, dests=['0.0.0.0'], n_interfaces=None, n_bits=4, dest_ports=[10000], blank=False):
+    def select_output_channels(self, start_chan, n_chans, dests=['0.0.0.0'], n_interfaces=None, n_bits=4, dest_ports=[10000], blank=False, nchans_per_packet_limit=None):
         """
         Select the range of channels which the voltage pipeline should output.
 
@@ -290,6 +290,10 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         :param blank: If True, disable this output stream, but configure upstream reorders as if
             it were enabled.
         :type blank: bool
+
+        :param nchans_per_packet_limit: If not None, limits the number of channels per packet to
+            min(nchans_per_packet_limit, actual-maximum).
+        :type nchans_per_packet_limit: int
 
         :raises AssertionError: If the following conditions aren't met:
             `start_chan` should be a multiple of self.n_chans_per_block (4)
@@ -353,6 +357,8 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # size is 8 kByte + header
         assert n_bits in [4], "Only 4-bit output modes is supported!"
         max_chans_per_packet = 8*8192 // (2*n_bits) // self.n_times_per_packet // 2
+        if nchans_per_packet_limit is not None:
+            max_chans_per_packet = min(max_chans_per_packet, nchans_per_packet_limit)
 
         # Figure out the channel granularity of the packetizer. This operates
         # in blocks of packetizer_granularity 64-bit words.
