@@ -515,8 +515,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # send to that address.
         rv = {}
         for dn, d in enumerate(dests):
-            rv[d] = list(range(start_chan + dn*n_chans_per_destination,
-                          start_chan + (dn+1)*n_chans_per_destination))
+            rv[d] = {'start_chan':start_chan + dn*n_chans_per_destination, 'end_chan':start_chan + (dn+1)*n_chans_per_destination}
         return rv
 
     def _populate_headers(self, interface, headers, offset=0):
