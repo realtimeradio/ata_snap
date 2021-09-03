@@ -22,7 +22,8 @@ def run(host, fpgfile, configfile,
         eth_volt=False,
         acclen=250000,
         testmode=False,
-        specdest=None
+        specdest=None,
+        dests=None
         ):
     logger = logging.getLogger(__file__)
     logger.setLevel(logging.INFO)
@@ -41,6 +42,7 @@ def run(host, fpgfile, configfile,
     config['dest_port'] = dest_port or config['dest_port']
     if isinstance(config['dest_port'], str):
         config['dest_port'] = list(map(int, config['dest_port'].split(',')))
+    config['voltage_output']['dests'] = dests or config['voltage_output']['dests']
 
     logger.info("Connecting to %s" % host)
     fengs = []
