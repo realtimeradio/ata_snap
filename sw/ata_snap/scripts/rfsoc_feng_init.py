@@ -108,7 +108,7 @@ def run(host, fpgfile, configfile,
     if eth_spec or eth_volt:
         # Configure arp table
         for ip, mac in config['arp'].items():
-            print ("Configuring ip: %s with mac: %x" %(ip, mac))
+            print ("Configuring ip: %s with mac: %012x" %(ip, mac))
             for ethn, eth in enumerate(fengs[0].fpga.gbes):
                 eth.set_single_arp_entry(ip, mac)
 
