@@ -143,13 +143,17 @@ def run(host, fpgfile, configfile,
                 feng_dests = dests if not dests_is_antgroup_list_of_dests else dests[fn]
                 output = feng.select_output_channels(start_chan, n_chans, feng_dests, n_interfaces=n_interfaces, dest_ports=dest_port, nchans_per_packet_limit=chans_per_packet_limit)
                 print(output)
+            
+            used_pipeline_ids = [feng.pipeline_id for feng in fengs]
+            unused_pipeline_ids = [pipe_id for pipe_id in range(0, fengs[-1].n_ants_per_board) if pipe_id not in used_pipeline_ids]
+            logger.info('Unused Pipeline IDs: {}'.format(unused_pipeline_ids))
             # hack to fill in channel reorder map for unused F-engines
             orig_pipeline_id = fengs[-1].pipeline_id
             orig_feng_id = fengs[-1].feng_id
-            for fn, pipeline_id in enumerate(range(orig_pipeline_id+1, fengs[-1].n_ants_per_board)):
+            for pipeline_id in unused_pipeline_ids:
                 print("blanking out pipeline id %d" % pipeline_id)
                 dest_port = config['dest_port'][pipeline_id] if isinstance(config['dest_port'], list) else config['dest_port']
-                feng_dests = dests if not dests_is_antgroup_list_of_dests else dests[fn]
+                feng_dests = dests if not dests_is_antgroup_list_of_dests else dests[0] # doesn't really matter
                 fengs[-1].feng_id = -1
                 fengs[-1].pipeline_id = pipeline_id
                 fengs[-1]._calc_output_ids()
