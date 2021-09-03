@@ -38,7 +38,6 @@ def run(host, fpgfile, configfile,
         config = yaml.load(fh, Loader=yaml.SafeLoader)
 
     config['acclen'] = acclen or config['acclen']
-    config['spectrometer_dest'] = specdest or config['spectrometer_dest']
     config['dest_port'] = dest_port or config['dest_port']
     if isinstance(config['dest_port'], str):
         config['dest_port'] = list(map(int, config['dest_port'].split(',')))
@@ -122,6 +121,7 @@ def run(host, fpgfile, configfile,
             eth.configure_core(mac, ip, port)
 
     if eth_spec:
+        config['spectrometer_dest'] = specdest or config['spectrometer_dest']
         for feng in fengs:
             feng.spec_set_pipeline_id()
             feng.spec_set_destination(config['spectrometer_dest'])
