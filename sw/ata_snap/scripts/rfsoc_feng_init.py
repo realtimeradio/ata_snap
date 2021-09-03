@@ -211,6 +211,8 @@ if __name__ == '__main__':
                         help='List of F-engine IDs to write to this SNAP\'s output packets')
     parser.add_argument('-j', dest='pipeline_ids', type=int, nargs='*', default=[0,1,2,3],
                         help='List of pipeline IDs to associate an F-eng with a pipeline instance')
+    parser.add_argument('-d', dest='dests', type=str, nargs='*', default=None,
+                        help='List of the packets\' destination IP addresses (Nested lists are comma (\",\") delimited)')
     parser.add_argument('-p', dest='dest_port', type=str,
                         default=None,
                         help='Comma-separated 100 GBe destination ports. One per F-engine [defaults to config file].')
@@ -231,6 +233,14 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    assert len(args.pipeline_ids) == len(args.feng_ids), 'There must be as many Pipeline IDs ({}) as there are F-Eng IDs. ({})'.format(len(args.pipeline_ids), len(args.feng_ids))
+
+    if args.dests is not None:
+        dests_are_nested = any([',' in dests for dests in args.dests])
+        if dests_are_nested:
+            assert len(args.dests) == len(args.pipeline_ids), 'Nested destination IPs provided, but not enough for each of {} pipelines in use.'.format(len(args.pipeline_ids))
+            args.dests = [dests.split(',') for dests in args.dests]
+
     run(args.host, args.fpgfile, args.configfile,
         sync=args.sync,
         mansync=args.mansync,
@@ -238,6 +248,7 @@ if __name__ == '__main__':
         feng_ids=args.feng_ids,
         pipeline_ids=args.pipeline_ids,
         dest_port=args.dest_port,
+        dests=args.dests,
         skipprog=args.skipprog,
         eth_spec=args.eth_spec,
         noblank=args.noblank,
