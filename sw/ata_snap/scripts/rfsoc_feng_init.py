@@ -22,7 +22,8 @@ def run(host, fpgfile, configfile,
         eth_volt=False,
         acclen=250000,
         testmode=False,
-        specdest=None
+        specdest=None,
+        dests=None
         ):
     logger = logging.getLogger(__file__)
     logger.setLevel(logging.INFO)
@@ -38,14 +39,14 @@ def run(host, fpgfile, configfile,
         config = yaml.load(fh, Loader=yaml.SafeLoader)
 
     config['acclen'] = acclen or config['acclen']
-    config['spectrometer_dest'] = specdest or config['spectrometer_dest']
     config['dest_port'] = dest_port or config['dest_port']
     if isinstance(config['dest_port'], str):
         config['dest_port'] = list(map(int, config['dest_port'].split(',')))
+    config['voltage_output']['dests'] = dests or config['voltage_output']['dests']
 
     logger.info("Connecting to %s" % host)
     fengs = []
-    assert len(feng_ids) <= 8, "Only 1-8 F-Engine IDs supported"
+    assert len(feng_ids) <= 8, "At most 8 F-Engine IDs supported"
     assert len(pipeline_ids) == len(feng_ids), "pipeline_ids and feng_ids should have the same length"
     cfpga = casperfpga.CasperFpga(host, transport=casperfpga.KatcpTransport)
     logger.info("Connected")
@@ -108,7 +109,7 @@ def run(host, fpgfile, configfile,
     if eth_spec or eth_volt:
         # Configure arp table
         for ip, mac in config['arp'].items():
-            print ("Configuring ip: %s with mac: %x" %(ip, mac))
+            print ("Configuring ip: %s with mac: %012x" %(ip, mac))
             for ethn, eth in enumerate(fengs[0].fpga.gbes):
                 eth.set_single_arp_entry(ip, mac)
 
@@ -122,6 +123,7 @@ def run(host, fpgfile, configfile,
             eth.configure_core(mac, ip, port)
 
     if eth_spec:
+        config['spectrometer_dest'] = specdest or config['spectrometer_dest']
         for feng in fengs:
             feng.spec_set_pipeline_id()
             feng.spec_set_destination(config['spectrometer_dest'])
@@ -131,23 +133,29 @@ def run(host, fpgfile, configfile,
             n_chans = voltage_config['n_chans']
             start_chan = voltage_config['start_chan']
             dests = voltage_config['dests']
+            dests_is_antgroup_list_of_dests = isinstance(dests[0], list)
+            chans_per_packet_limit = voltage_config['limit_chans_per_packet'] if 'limit_chans_per_packet'  in voltage_config else None
             logger.info('Voltage output sending channels %d to %d' % (start_chan, start_chan+n_chans-1))
             logger.info('Destination IPs: %s' %dests)
             logger.info('Using %d interfaces' % n_interfaces)
             for fn, feng in enumerate(fengs):
                 dest_port = config['dest_port'][fn] if isinstance(config['dest_port'], list) else config['dest_port']
-                dest_ports = [dest_port for _ in range(len(dests))]
-                output = feng.select_output_channels(start_chan, n_chans, dests, n_interfaces=n_interfaces, dest_ports=dest_ports)
+                feng_dests = dests if not dests_is_antgroup_list_of_dests else dests[fn]
+                output = feng.select_output_channels(start_chan, n_chans, feng_dests, n_interfaces=n_interfaces, dest_ports=dest_port, nchans_per_packet_limit=chans_per_packet_limit)
                 print(output)
+            
+            used_pipeline_ids = [feng.pipeline_id for feng in fengs]
+            unused_pipeline_ids = [pipe_id for pipe_id in range(0, fengs[-1].n_ants_per_board) if pipe_id not in used_pipeline_ids]
+            logger.info('Unused Pipeline IDs: {}'.format(unused_pipeline_ids))
             # hack to fill in channel reorder map for unused F-engines
             orig_pipeline_id = fengs[-1].pipeline_id
             orig_feng_id = fengs[-1].feng_id
-            for pipeline_id in range(orig_pipeline_id+1, fengs[-1].n_ants_per_board):
+            for pipeline_id in unused_pipeline_ids:
                 dest_port = config['dest_port'][pipeline_id] if isinstance(config['dest_port'], list) else config['dest_port']
-                dest_ports = [dest_port for _ in range(len(dests))]
+                feng_dests = dests if not dests_is_antgroup_list_of_dests else dests[0] # doesn't really matter
                 fengs[-1].feng_id = -1
                 fengs[-1].pipeline_id = pipeline_id
-                fengs[-1].select_output_channels(start_chan, n_chans, dests, n_interfaces=n_interfaces, dest_ports=dest_ports, blank=not noblank)
+                fengs[-1].select_output_channels(start_chan, n_chans, feng_dests, n_interfaces=n_interfaces, dest_ports=dest_port, blank=not noblank, nchans_per_packet_limit=chans_per_packet_limit)
             fengs[-1].pipeline_id = orig_pipeline_id
             fengs[-1].feng_id = orig_feng_id
         else:
@@ -201,6 +209,8 @@ if __name__ == '__main__':
                         help='List of F-engine IDs to write to this SNAP\'s output packets')
     parser.add_argument('-j', dest='pipeline_ids', type=int, nargs='*', default=[0,1,2,3],
                         help='List of pipeline IDs to associate an F-eng with a pipeline instance')
+    parser.add_argument('-d', dest='dests', type=str, nargs='*', default=None,
+                        help='List of the packets\' destination IP addresses (Nested lists are comma (\",\") delimited)')
     parser.add_argument('-p', dest='dest_port', type=str,
                         default=None,
                         help='Comma-separated 100 GBe destination ports. One per F-engine [defaults to config file].')
@@ -221,6 +231,14 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    assert len(args.pipeline_ids) == len(args.feng_ids), 'There must be as many Pipeline IDs ({}) as there are F-Eng IDs. ({})'.format(len(args.pipeline_ids), len(args.feng_ids))
+
+    if args.dests is not None:
+        dests_are_nested = any([',' in dests for dests in args.dests])
+        if dests_are_nested:
+            assert len(args.dests) == len(args.pipeline_ids), 'Nested destination IPs provided, but not enough for each of {} pipelines in use.'.format(len(args.pipeline_ids))
+            args.dests = [dests.split(',') for dests in args.dests]
+
     run(args.host, args.fpgfile, args.configfile,
         sync=args.sync,
         mansync=args.mansync,
@@ -228,6 +246,7 @@ if __name__ == '__main__':
         feng_ids=args.feng_ids,
         pipeline_ids=args.pipeline_ids,
         dest_port=args.dest_port,
+        dests=args.dests,
         skipprog=args.skipprog,
         eth_spec=args.eth_spec,
         noblank=args.noblank,

@@ -260,7 +260,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         readback = self.fpga.read(regname, len(tv_8bit_str))
         assert tv_8bit_str == readback, "Readback failed!"
 
-    def select_output_channels(self, start_chan, n_chans, dests=['0.0.0.0'], n_interfaces=None, n_bits=4, dest_ports=[10000], blank=False):
+    def select_output_channels(self, start_chan, n_chans, dests=['0.0.0.0'], n_interfaces=None, n_bits=4, dest_ports=[10000], blank=False, nchans_per_packet_limit=None):
         """
         Select the range of channels which the voltage pipeline should output.
 
@@ -279,6 +279,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         :type dests: list of str
 
         :param dest_ports: List of destination UDP ports to which data should be sent.
+            If it is a scalar, a list of duplicates is used.
             The first n_chans / len(dests) will be sent to dest[0], etc..
             The length of this list should be the same as the length of the ``dests`` list.
         :type dests: list of int
@@ -290,6 +291,10 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         :param blank: If True, disable this output stream, but configure upstream reorders as if
             it were enabled.
         :type blank: bool
+
+        :param nchans_per_packet_limit: If not None, limits the number of channels per packet to
+            min(nchans_per_packet_limit, actual-maximum).
+        :type nchans_per_packet_limit: int
 
         :raises AssertionError: If the following conditions aren't met:
             `start_chan` should be a multiple of self.n_chans_per_block (4)
@@ -340,8 +345,10 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # spectra using a programmable reorder. This reorder operates on
         # n_chans_f * n_times_per_packet / nchans_per_block words, with each word
         # 8+8 bits x nchans_per_block x 2 [pols] wide.
-
-        assert len(dests) == len(dest_ports), "Length of ``dests`` list and ``dest_ports`` list must be the same"
+        if isinstance(dest_ports, list):
+            assert len(dests) == len(dest_ports), "Length of ``dests`` list and ``dest_ports`` list must be the same"
+        else:
+            dest_ports = [dest_ports for _ in range(len(dests))]
 
         # default to using all the interfaces
         n_interfaces = n_interfaces or self.n_interfaces
@@ -351,22 +358,24 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # size is 8 kByte + header
         assert n_bits in [4], "Only 4-bit output modes is supported!"
         max_chans_per_packet = 8*8192 // (2*n_bits) // self.n_times_per_packet // 2
+        if nchans_per_packet_limit is not None:
+            max_chans_per_packet = min(max_chans_per_packet, nchans_per_packet_limit)
 
         # Figure out the channel granularity of the packetizer. This operates
         # in blocks of packetizer_granularity 64-bit words.
         # For now, we only consider case with time the faster axis.
         times_per_word = self.tge_n_samples_per_word // (2*2*n_bits)
         # This should always be True for reasonable firmware
-        assert self.packetizer_granularity % times_per_word == 0
+        assert self.packetizer_granularity % times_per_word == 0, 'self.packetizer_granularity % times_per_word ({} % {}) != 0'.format(self.packetizer_granularity, times_per_word)
         packetizer_chan_granularity = self.packetizer_granularity // times_per_word
 
         # We reorder n_chans_per_block as parallel words, so must deal with
         # start / stop points with that granularity
-        assert start_chan % self.n_chans_per_block == 0
+        assert start_chan % self.n_chans_per_block == 0, 'start_chan % self.n_chans_per_block ({} % {}) != 0'.format(start_chan, self.n_chans_per_block)
         n_dests = len(dests)
         # Also Demand that the number of channels can be equally divided
         # among the destination addresses
-        assert n_chans % (n_dests * self.n_chans_per_block) == 0
+        assert n_chans % (n_dests * self.n_chans_per_block) == 0, 'n_chans % (n_dests * self.n_chans_per_block) ({} % {}) != 0'.format(n_chans, (n_dests * self.n_chans_per_block))
         # Number of channels per destination is now gauranteed to be an integer
         # multiple of n_chans_per_block
         n_chans_per_destination = n_chans // n_dests
@@ -374,15 +383,15 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # packets
         n_packets_per_destination = int(np.ceil(n_chans_per_destination / max_chans_per_packet))
         # Channels should be able to be divided up into packets equally
-        assert n_chans_per_destination % n_packets_per_destination == 0
+        assert n_chans_per_destination % n_packets_per_destination == 0, 'n_chans_per_destination % n_packets_per_destination ({} % {}) != 0'.format(n_chans_per_destination, n_packets_per_destination)
         n_chans_per_packet = n_chans_per_destination  // n_packets_per_destination
         # Number of channels per packet should be a multiple of the reorder granularity
-        assert n_chans_per_packet % self.n_chans_per_block == 0
+        assert n_chans_per_packet % self.n_chans_per_block == 0, 'n_chans_per_packet % self.n_chans_per_block ({} % {}) != 0'.format(n_chans_per_packet, self.n_chans_per_block)
         # Number of channels per packet should be a multiple of packetizer granularity
-        assert n_chans_per_packet % packetizer_chan_granularity == 0
+        assert n_chans_per_packet % packetizer_chan_granularity == 0, 'n_chans_per_packet % packetizer_chan_granularity ({} % {}) != 0'.format(n_chans_per_packet, packetizer_chan_granularity)
         n_slots_per_packet = n_chans_per_packet // packetizer_chan_granularity
         # Can't send more than all the channels!
-        assert start_chan + n_chans <= self.n_chans_f
+        assert start_chan + n_chans <= self.n_chans_f, 'start_chan + n_chans > self.n_chans_f ({} > {})'.format(start_chan + n_chans, self.n_chans_f)
 
         self.logger.info('Start channel: %d' % start_chan)
         self.logger.info('Number of channels to send: %d' % n_chans)
@@ -506,8 +515,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # send to that address.
         rv = {}
         for dn, d in enumerate(dests):
-            rv[d] = list(range(start_chan + dn*n_chans_per_destination,
-                          start_chan + (dn+1)*n_chans_per_destination))
+            rv[d] = {'start_chan':start_chan + dn*n_chans_per_destination, 'end_chan':start_chan + (dn+1)*n_chans_per_destination}
         return rv
 
     def _populate_headers(self, interface, headers, offset=0):
