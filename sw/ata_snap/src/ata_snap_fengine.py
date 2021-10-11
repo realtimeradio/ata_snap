@@ -88,6 +88,12 @@ class AtaSnapFengine(object):
         self.logger = logging.getLogger('AtaSnapFengine')
         self.logger.setLevel(logging.DEBUG)
         self.feng_id = feng_id
+        if 'nchans' in self.fpga.listdev():
+            self.n_chans_f = self.fpga.read_uint('n_chans_f')
+        if 'is_8_bit' in self.fpga.listdev():
+            self.is_8_bit = bool(self.fpga.read_uint('is_8_bit'))
+        else:
+            self.is_8_bit = False
         # If the board is programmed, try to get the fpg data
         #if self.is_programmed():
         #    try:

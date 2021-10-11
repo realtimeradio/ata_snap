@@ -53,6 +53,18 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             self.spec_set_pipeline_id()
         except:
             pass
+        if 'nchans' in self.fpga.listdev():
+            self.n_chans_f = self.fpga.read_uint('n_chans_f')
+        if 'is_8_bit' in self.fpga.listdev():
+            self.is_8_bit = bool(self.fpga.read_uint('is_8_bit'))
+        else:
+            self.is_8_bit = False
+        if self.is_8_bit:
+            self.n_chans_per_block = self.n_chans_per_block // 2
+            self.n_ants_per_output = self.n_ants_per_board // 2 #: Number of antennas per 100G link
+        else:
+            self.n_ants_per_output = self.n_ants_per_board #: Number of antennas per 100G link
+        self.output_id = pipeline_id // self.n_ants_per_output
         # If the board is programmed, try to get the fpg data
         #if self.is_programmed():
         #    try:
@@ -260,7 +272,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         readback = self.fpga.read(regname, len(tv_8bit_str))
         assert tv_8bit_str == readback, "Readback failed!"
 
-    def select_output_channels(self, start_chan, n_chans, dests=['0.0.0.0'], n_interfaces=None, n_bits=4, dest_ports=[10000], blank=False):
+    def select_output_channels(self, start_chan, n_chans, dests=['0.0.0.0'], dest_ports=[10000], blank=False):
         """
         Select the range of channels which the voltage pipeline should output.
 
@@ -282,10 +294,6 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             The first n_chans / len(dests) will be sent to dest[0], etc..
             The length of this list should be the same as the length of the ``dests`` list.
         :type dests: list of int
-
-        :param n_interfaces: Number of 10GbE interfaces to use. Should be <= self.n_interfaces
-            Default to using all available interfaces.
-        :type n_interface: int
 
         :param blank: If True, disable this output stream, but configure upstream reorders as if
             it were enabled.
@@ -327,7 +335,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # packetizers, and this function should ensure half the channels are sent from
         # each port.
         # In the event that 8-bit mode is used, 1/n_interfaces of the total generated
-        # channels are sent to each packetizer, and marking of packet boundaries should
+        # antennas are sent to each packetizer, and marking of packet boundaries should
         # be dealt with accordingly.
 
         # Currently, the only mode allowed outputs data in [slowest to fastest]
@@ -344,13 +352,19 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         assert len(dests) == len(dest_ports), "Length of ``dests`` list and ``dest_ports`` list must be the same"
 
         # default to using all the interfaces
-        n_interfaces = n_interfaces or self.n_interfaces
+        n_interfaces = self.n_interfaces
         assert n_interfaces <= self.n_interfaces
 
         # define maximum number of channels per packet such that max packet
         # size is 8 kByte + header
-        assert n_bits in [4], "Only 4-bit output modes is supported!"
-        max_chans_per_packet = 8*8192 // (2*n_bits) // self.n_times_per_packet // 2
+        if self.is_8_bit:
+            n_bits = 8
+        else:
+            n_bits = 4
+
+        MAX_JUMBO_PKT_BYTES = 8192
+
+        max_chans_per_packet = 8*MAX_JUMBO_PKT_BYTES // (2*n_bits) // self.n_times_per_packet // 2
 
         # Figure out the channel granularity of the packetizer. This operates
         # in blocks of packetizer_granularity 64-bit words.
@@ -478,8 +492,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         #    for j in range(packetizer_n_blocks):
         #        print(i,j,headers[i][j])
         # Load the headers
-        for i in range(n_interfaces):
-            self._populate_headers(i, headers[i], offset=self.pipeline_id*available_blocks)
+        self._populate_headers(self.output_id, headers[i], offset=(self.pipeline_id % self.n_ants_per_per_output)*available_blocks)
         
         # Load the chan reorder map
 
@@ -614,7 +627,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         
         # Turn the map from a channel number into a reorder word index.
         # input order is chans x antennas x n_chans_per_block
-        out_array *= self.n_ants_per_board # offset by multiple antennas
+        out_array *= self.n_ants_per_output # offset by multiple antennas
         out_array += self.pipeline_id # offset by this pipeline
         out_bytes = out_array.tobytes()
         offset_words = self.pipeline_id * out_array.shape[0]
