@@ -1,4 +1,4 @@
-.. |version| replace:: 2.0.0
+.. |version| replace:: 2.1.0
 
 ATA SNAP F-Engine Firmware User Manual
 ======================================
