@@ -13,7 +13,6 @@ RXBUF = 8500
 
 def unpack(pkt):
     header = struct.unpack(">BBHHHQ", pkt[0:16])
-    d = np.fromstring(pkt[16:], dtype=">B")
     h = {}
     h['timestamp'] = header[5]
     h['feng_id'] = header[4]
@@ -21,6 +20,14 @@ def unpack(pkt):
     h['n_chans'] = header[2]
     h['type']    = header[1]
     h['version'] = header[0]
+    if h['type'] & 0b10:
+        d = np.fromstring(pkt[16:], dtype=">H")
+        dr = (d >> 8) & 0xff
+        di = d & 0xff
+        d4bit = ((dr >> 4) << 4) + (di >> 4)
+        d = d4bit
+    else:
+        d = np.fromstring(pkt[16:], dtype=">B")
     #h['feng_id'] = header[0] & 0xffff
     #h['chan']    = (header[0] >> 16) & 0xffff
     #h['n_chans'] = (header[0] >> 32) & 0xffff

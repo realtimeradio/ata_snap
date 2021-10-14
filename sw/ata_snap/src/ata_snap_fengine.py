@@ -70,7 +70,7 @@ class AtaSnapFengine(object):
     n_times_per_packet = 16 # Number of time samples per packet
     packetizer_granularity = 2**5 # Number of 64-bit words ber packetizer step
     n_coeff_shared = 4 # Number of adjacent frequency channels sharing an EQ coefficient
-    tge_n_samples_per_word = 8 # 8 1-byte time samples per 64-bit 10GbE output.
+    tge_n_bytes_per_word = 8 # 8 1-byte time samples per 64-bit 10GbE output.
     n_ants_per_board = 1 #: Number of antennas on a board
 
     def __init__(self, host, feng_id=0, transport=casperfpga.TapcpTransport, use_rpi=None):
@@ -1540,7 +1540,7 @@ class AtaSnapFengine(object):
         """
 
         if n_words is None:
-            n_words = self.n_chans_f * self.n_times_per_packet * self.n_pols // self.tge_n_samples_per_word // self.packetizer_granularity
+            n_words = self.n_chans_f * self.n_times_per_packet * self.n_pols // self.tge_n_bytes_per_word // self.packetizer_granularity
         hs_raw = self.fpga.read('packetizer%d_header' % interface, 8*n_words, offset=8*offset)
         ips_raw = self.fpga.read('packetizer%d_ips' % interface, 4*n_words, offset=4*offset)
         hs = struct.unpack('>%dQ' % n_words, hs_raw)

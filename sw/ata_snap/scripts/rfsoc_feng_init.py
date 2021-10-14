@@ -137,19 +137,22 @@ def run(host, fpgfile, configfile,
             for fn, feng in enumerate(fengs):
                 dest_port = config['dest_port'][fn] if isinstance(config['dest_port'], list) else config['dest_port']
                 dest_ports = [dest_port for _ in range(len(dests))]
-                output = feng.select_output_channels(start_chan, n_chans, dests, n_interfaces=n_interfaces, dest_ports=dest_ports)
+                output = feng.select_output_channels(start_chan, n_chans, dests, dest_ports=dest_ports)
                 print(output)
             # hack to fill in channel reorder map for unused F-engines
             orig_pipeline_id = fengs[-1].pipeline_id
             orig_feng_id = fengs[-1].feng_id
             for pipeline_id in range(orig_pipeline_id+1, fengs[-1].n_ants_per_board):
+                print("balnking out pipeline id %d" % pipeline_id)
                 dest_port = config['dest_port'][pipeline_id] if isinstance(config['dest_port'], list) else config['dest_port']
                 dest_ports = [dest_port for _ in range(len(dests))]
                 fengs[-1].feng_id = -1
                 fengs[-1].pipeline_id = pipeline_id
-                fengs[-1].select_output_channels(start_chan, n_chans, dests, n_interfaces=n_interfaces, dest_ports=dest_ports, blank=not noblank)
+                fengs[-1]._calc_output_ids()
+                fengs[-1].select_output_channels(start_chan, n_chans, dests, dest_ports=dest_ports, blank=not noblank)
             fengs[-1].pipeline_id = orig_pipeline_id
             fengs[-1].feng_id = orig_feng_id
+            fengs[-1]._calc_output_ids()
         else:
             logger.error("Requested voltage output but config file did not provide a configuration")
 
@@ -172,9 +175,12 @@ def run(host, fpgfile, configfile,
 
     # Reset ethernet cores prior to enabling
     if eth_spec or eth_volt:
-        fengs[0].eth_reset()
+        logger.info('Resetting Ethernet core')
+        for feng in fengs:
+            feng.eth_reset()
         logger.info('Enabling Ethernet output')
-        fengs[0].eth_enable_output(True)
+        for feng in fengs:
+            feng.eth_enable_output(True)
     else:
         logger.info('Not enabling Ethernet output, since neither voltage or spectrometer 10GbE output flags were set.')
 

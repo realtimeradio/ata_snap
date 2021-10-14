@@ -28,8 +28,8 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
     n_interfaces = 1     #: Number of available 10GbE interfaces
     n_ants_per_board = 8 #: Number of antennas on a board
     n_chans_per_block = 32 #: Number of channels reordered in a single word
-    packetizer_granularity = 2**8 # Number of 64-bit words ber packetizer step
-    tge_n_samples_per_word = 64 # 64 1-byte time samples per 512-bit 100GbE output.
+    packetizer_granularity = 2**5 # Number of words per packetizer step
+    tge_n_bytes_per_word = 64 # 64 1-byte time samples per 512-bit 100GbE output.
     def __init__(self, host, feng_id=0, pipeline_id=0):
         """
         Constructor method
@@ -54,7 +54,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         except:
             pass
         if 'nchans' in self.fpga.listdev():
-            self.n_chans_f = self.fpga.read_uint('n_chans_f')
+            self.n_chans_f = self.fpga.read_uint('nchans')
         if 'is_8_bit' in self.fpga.listdev():
             self.is_8_bit = bool(self.fpga.read_uint('is_8_bit'))
         else:
@@ -64,13 +64,18 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             self.n_ants_per_output = self.n_ants_per_board // 2 #: Number of antennas per 100G link
         else:
             self.n_ants_per_output = self.n_ants_per_board #: Number of antennas per 100G link
-        self.output_id = pipeline_id // self.n_ants_per_output
+        self._calc_output_ids()
+
         # If the board is programmed, try to get the fpg data
         #if self.is_programmed():
         #    try:
         #        self.fpga.transport.get_meta()
         #    except:
         #        self.logging.warning("Tried to get fpg meta-data from a running board and failed!")
+
+    def _calc_output_ids(self):
+        self.output_id = self.pipeline_id // self.n_ants_per_output
+        self.subpipeline_id = self.pipeline_id % self.n_ants_per_output
 
     def _pipeline_get_regname(self, regname):
         """
@@ -351,8 +356,9 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
 
         assert len(dests) == len(dest_ports), "Length of ``dests`` list and ``dest_ports`` list must be the same"
 
-        # default to using all the interfaces
-        n_interfaces = self.n_interfaces
+        # In RFSoC designs, all channels transit a single interface.
+        # Multiple interface may be used for different antennas, but that is accomodated elsewhere
+        n_interfaces = 1 
         assert n_interfaces <= self.n_interfaces
 
         # define maximum number of channels per packet such that max packet
@@ -365,34 +371,46 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         MAX_JUMBO_PKT_BYTES = 8192
 
         max_chans_per_packet = 8*MAX_JUMBO_PKT_BYTES // (2*n_bits) // self.n_times_per_packet // 2
+        self.logger.info("Max channels per packet: %d" % max_chans_per_packet)
 
         # Figure out the channel granularity of the packetizer. This operates
         # in blocks of packetizer_granularity 64-bit words.
         # For now, we only consider case with time the faster axis.
-        times_per_word = self.tge_n_samples_per_word // (2*2*n_bits)
-        # This should always be True for reasonable firmware
-        assert self.packetizer_granularity % times_per_word == 0
-        packetizer_chan_granularity = self.packetizer_granularity // times_per_word
+        times_per_word = self.tge_n_bytes_per_word // (2*2*n_bits // 8)
+        assert times_per_word % self.n_times_per_packet == 0
+        chans_per_word = times_per_word // self.n_times_per_packet
+        self.logger.info("Samples per packetizer word: %d" % times_per_word)
+        self.logger.info("Channels per packetizer word: %d" % chans_per_word)
+        self.logger.info("Packetizer granularity: %d" % self.packetizer_granularity)
+        packetizer_chan_granularity = self.packetizer_granularity // chans_per_word
 
         # We reorder n_chans_per_block as parallel words, so must deal with
         # start / stop points with that granularity
         assert start_chan % self.n_chans_per_block == 0
         n_dests = len(dests)
+        self.logger.info("Number of destination addresses is: %d" % n_dests)
+        self.logger.info("Number of channels to be sent is: %d" % n_chans)
+        self.logger.info("Max number of channels per packet is: %d" % max_chans_per_packet)
+        self.logger.info("Packetizer channel granularity is: %d" % packetizer_chan_granularity)
+        self.logger.info("Channels per block is: %d" % self.n_chans_per_block)
         # Also Demand that the number of channels can be equally divided
         # among the destination addresses
         assert n_chans % (n_dests * self.n_chans_per_block) == 0
         # Number of channels per destination is now gauranteed to be an integer
         # multiple of n_chans_per_block
         n_chans_per_destination = n_chans // n_dests
+        self.logger.info("Number of channels per destination is: %d" % n_chans_per_destination)
         # If the channels per destination is > the max, then split into multiple
         # packets
         n_packets_per_destination = int(np.ceil(n_chans_per_destination / max_chans_per_packet))
+        self.logger.info("Number of packets per destination is: %d" % n_packets_per_destination)
         # Channels should be able to be divided up into packets equally
         assert n_chans_per_destination % n_packets_per_destination == 0
         n_chans_per_packet = n_chans_per_destination  // n_packets_per_destination
         # Number of channels per packet should be a multiple of the reorder granularity
         assert n_chans_per_packet % self.n_chans_per_block == 0
         # Number of channels per packet should be a multiple of packetizer granularity
+        self.logger.info('Number of channels per packet: %d' % n_chans_per_packet)
         assert n_chans_per_packet % packetizer_chan_granularity == 0
         n_slots_per_packet = n_chans_per_packet // packetizer_chan_granularity
         # Can't send more than all the channels!
@@ -405,7 +423,6 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
 
         self.logger.info('Number of destinations: %d' % n_dests)
         self.logger.info('Number of channels per destination: %d' % n_chans_per_destination)
-        self.logger.info('Number of channels per packet: %d' % n_chans_per_packet)
 
         # First, for simplicity, duplicate the destination list so that
         # we can deal exclusively in packets, with nominally 1 packet per destination,
@@ -492,7 +509,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         #    for j in range(packetizer_n_blocks):
         #        print(i,j,headers[i][j])
         # Load the headers
-        self._populate_headers(self.output_id, headers[i], offset=(self.pipeline_id % self.n_ants_per_per_output)*available_blocks)
+        self._populate_headers(self.output_id, headers[0], offset=self.subpipeline_id*available_blocks)
         
         # Load the chan reorder map
 
@@ -519,6 +536,10 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # send to that address.
         rv = {}
         for dn, d in enumerate(dests):
+            print("start chan", start_chan)
+            print("offset chan", start_chan + dn*n_chans_per_destination)
+            print("end chan", start_chan + (dn+1)*n_chans_per_destination)
+            print(list(range(start_chan + dn*n_chans_per_destination, start_chan + (dn+1)*n_chans_per_destination)))
             rv[d] = list(range(start_chan + dn*n_chans_per_destination,
                           start_chan + (dn+1)*n_chans_per_destination))
         return rv
@@ -551,6 +572,11 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
           - `dest` : String, the destination IP of this data block (eg "10.10.10.100")
         """
 
+        if self.is_8_bit: # 8-bit firmware has 32-bit port RAM (for absolutely no good reason)
+            port_width_bytes = 4
+        else:
+            port_width_bytes = 2
+
         h_bytestr = b''
         ip_bytestr = b''
         port_bytestr = b''
@@ -565,19 +591,23 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
                         + ((h['feng_id'] & 0xffff) << 0)
             h_bytestr += struct.pack('>Q', header_word)
             ip_bytestr += struct.pack('>I', _ip_to_int(h['dest']))
-            port_bytestr += struct.pack('>H', h['dest_port'])
-        print(len(port_bytestr))
+            if port_width_bytes == 2:
+                port_bytestr += struct.pack('>H', h['dest_port'])
+            elif port_width_bytes == 4:
+                port_bytestr += struct.pack('>I', h['dest_port'])
+            else:
+                raise NotImplementedError("Don't know what port_width_bytes=%d means!" % port_width_bytes)
         for i in range(len(ip_bytestr) // 4):
             self.fpga.write('packetizer%d_ips' % interface, ip_bytestr[4*i:4*(i+1)], offset=4*i+4*offset)
         assert self.fpga.read('packetizer%d_ips' % interface, len(ip_bytestr), offset=4*offset) == ip_bytestr, "Readback failed!"
         for i in range(len(h_bytestr) // 4):
             self.fpga.write('packetizer%d_header' % interface, h_bytestr[4*i:4*(i+1)], offset=4*i+8*offset)
         for i in range(len(port_bytestr) // 4):
-            self.fpga.write('packetizer%d_ports' % interface, port_bytestr[4*i:4*(i+1)], offset=4*i+2*offset)
-        assert self.fpga.read('packetizer%d_ports' % interface, len(port_bytestr), offset=2*offset) == port_bytestr, "Readback failed!"
+            self.fpga.write('packetizer%d_ports' % interface, port_bytestr[4*i:4*(i+1)], offset=4*i+port_width_bytes*offset)
+        assert self.fpga.read('packetizer%d_ports' % interface, len(port_bytestr), offset=port_width_bytes*offset) == port_bytestr, "Readback failed!"
         assert self.fpga.read('packetizer%d_header' % interface, len(h_bytestr), offset=8*offset) == h_bytestr, "Readback failed!"
 
-    def _read_headers(self, interface, n_words=None, offset=None):
+    def _read_headers(self, interface=None, n_words=None, offset=None):
         """
         Get the header entries from one of this board's packetizers.
         In lieu of n_words or offset, either/both are calculated for
@@ -591,12 +621,17 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         :return: headers
         :rtype: list
         """
-        bus_width_multiplier = self.tge_n_samples_per_word // 8
-        pipeline_n_words = self.n_chans_f * self.n_times_per_packet * self.n_pols // self.tge_n_samples_per_word // (self.packetizer_granularity // bus_width_multiplier)
+        if self.is_8_bit:
+            word_size_bytes = 2
+        else:
+            word_size_bytes = 1
+        pipeline_n_words = self.n_chans_f * self.n_times_per_packet * self.n_pols // (self.tge_n_bytes_per_word // word_size_bytes) // self.packetizer_granularity
         if n_words is None:
             n_words = pipeline_n_words
         if offset is None:
-            offset = self.pipeline_id*pipeline_n_words
+            offset = self.subpipeline_id*pipeline_n_words
+        if interface is None:
+            interface = self.output_id
         return super()._read_headers(interface, n_words, offset)
 
     def _reorder_channels(self, order, transpose_time=True):
@@ -628,12 +663,16 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # Turn the map from a channel number into a reorder word index.
         # input order is chans x antennas x n_chans_per_block
         out_array *= self.n_ants_per_output # offset by multiple antennas
-        out_array += self.pipeline_id # offset by this pipeline
+        out_array += self.subpipeline_id # offset by this pipeline
         out_bytes = out_array.tobytes()
-        offset_words = self.pipeline_id * out_array.shape[0]
+        offset_words = self.subpipeline_id * out_array.shape[0]
+        if self.is_8_bit:
+            reg = 'chan_reorder%d_reorder2_map' % self.output_id
+        else:
+            reg = 'chan_reorder_reorder_map'
         for i in range(len(out_bytes)//4):
-            self.fpga.write('chan_reorder_reorder_map', out_bytes[4*i:4*(i+1)], offset=4*i + 2*offset_words)
-        assert self.fpga.read('chan_reorder_reorder_map', len(out_bytes), offset=2*offset_words) == out_bytes, "Readback failed"
+            self.fpga.write(reg, out_bytes[4*i:4*(i+1)], offset=4*i + 2*offset_words)
+        assert self.fpga.read(reg, len(out_bytes), offset=2*offset_words) == out_bytes, "Readback failed"
 
     def eth_set_dest_port(self, port, interface=None):
         """
@@ -646,6 +685,55 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         """
         port_reg = self._pipeline_get_regname('corr_dest_port')
         v = self.fpga.write_int(port_reg, port)
+
+    def eth_enable_output(self, enable=True, interface='all'):
+        """
+        Enable the 10GbE output datastream. Only do this
+        after appropriately setting an output configuration and
+        setting the pipeline mode with `eth_set_mode`.
+        For spectra mode, prior to enabling Ethernet the destination
+        address should be set with `spec_set_destination`.
+        For voltage mode, prior to enabling Ethernet configuration should
+        be loaded with `select_output_channels`
+
+        :param enable: Set to True to enable Ethernet transmission, or False to disable.
+        :type enable: bool
+        :param interface: Which physical interface to enable / disable.
+        :type interface: integer or 'all'
+        """
+        ENABLE_MASK =  0x00000002
+        if interface == 'all':
+            interfaces = range(self.n_interfaces)
+        else:
+            interfaces = [int(interface)]
+        for i in interfaces:
+            v = self.fpga.read_uint("eth%d_ctrl" % (self.output_id + i))
+            v = v &~ ENABLE_MASK
+            if enable:
+                v = v | ENABLE_MASK
+            self.fpga.write_int("eth%d_ctrl" % (self.output_id + i), v)
+
+    def eth_reset(self, interface='all'):
+        """
+        Reset the Ethernet core. This method will clear the reset after asserting,
+        and will leave the transmission stream disabled.
+        Reactivate the Ethernet core with `eth_enable_output`
+
+        :param interface: Which physical interface to enable / disable.
+        :type interface: integer or 'all'
+        """
+        RST_MASK = 0x00040001 # both stats and core resets
+        if interface == 'all':
+            interfaces = range(self.n_interfaces)
+        else:
+            interfaces = [int(interface)]
+        for i in interfaces:
+            self.eth_enable_output(enable=False, interface=i)
+            v = self.fpga.read_uint("eth%d_ctrl" % (self.output_id + i))
+            v = v | RST_MASK
+            self.fpga.write_int("eth%d_ctrl" % (self.output_id + i), v)
+            v = v &~ RST_MASK
+            self.fpga.write_int("eth%d_ctrl" % (self.output_id + i), v)
 
 def adc_plot_all(fengine, n_times=100):
     """
