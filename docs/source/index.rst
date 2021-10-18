@@ -13,6 +13,9 @@ ATA SNAP Firmware Documentation
    requirements.rst
    f_manual.rst
    ata_snap.rst
+   requirements-rfsoc.rst
+   f_manual-rfsoc.rst
+   ata_rfsoc.rst
 
 
 Index

@@ -1,5 +1,5 @@
-Specifications
-==============
+SNAP Firmware Specifications
+============================
 
 Requirements
 ------------
