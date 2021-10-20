@@ -21,11 +21,13 @@ def unpack(pkt):
     h['type']    = header[1]
     h['version'] = header[0]
     if h['type'] & 0b10:
-        d = np.fromstring(pkt[16:], dtype=">H")
-        dr = (d >> 8) & 0xff
-        di = d & 0xff
-        d4bit = ((dr >> 4) << 4) + (di >> 4)
-        d = d4bit
+        d = np.fromstring(pkt[16:], dtype=">B")
+        d = d[0::2] + 1j*d[1::2]
+        #d = np.fromstring(pkt[16:], dtype=">H")
+        #dr = (d >> 8) & 0xff
+        #di = d & 0xff
+        #d4bit = ((dr >> 4) << 4) + (di >> 4)
+        #d = d4bit
     else:
         d = np.fromstring(pkt[16:], dtype=">B")
     #h['feng_id'] = header[0] & 0xffff
@@ -59,11 +61,15 @@ try:
         data = sock.recv(RXBUF)
         h, x, y = unpack(data)
         print(h)
-        for i in range(32):
-            print(x[i], end=' ')
-        print('|', end=' ')
-        for i in range(32):
-            print(y[i], end=' ')
-        print()
+        print('X:')
+        for i in range(8):
+            for j in range(16):
+                print(x[16*i + j], end=' ')
+            print()
+        print('X:')
+        for i in range(8):
+            for j in range(16):
+                print(y[16*i + j], end=' ')
+            print()
 except KeyboardInterrupt:
     pass
