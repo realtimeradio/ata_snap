@@ -1,5 +1,5 @@
-ata_snap API reference
-======================
+ata_snap SNAP API reference
+===========================
 
 .. _sec-api:
 .. automodule:: ata_snap.ata_snap_fengine

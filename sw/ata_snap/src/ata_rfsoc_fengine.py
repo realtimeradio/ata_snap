@@ -220,6 +220,37 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             xy = grab(v[0])
             return xy
 
+    def set_delay_tracking(self, delay, delay_rate, load_time=None, load_sample=None):
+        """
+        Set this F-engine to track a given delay curve.
+
+        :param load_time: Unix time at which delay should be applied. If None, a load_sample
+            should be given.
+        :type load_time: float
+
+        :param load_sample: Spectrum index at which delay should be applied. Used only if
+            ``load_time`` is not provided.
+        :type load_sample: int
+
+        :param delay: Delay, in nanoseconds, which should be applied at the appropriate time.
+            Whole ADC sample delays are implemented using a coarse delay, while sub-sample
+            delays are implemented as a post-FFT phase rotation.
+        :type delay: float
+
+        :param delay rate: Delay rate, in nanoseconds per second. The incremental delay
+            which should be added to the current delay each second after the given load time.
+            Delay rate is converted from nanoseconds-per-second to nanoseconds-per-1024-spectra,
+            which is the update cadence of the underlying firmware.
+            For a 2.048GHz sampling rate, and 4096-point FFT, this
+            corresponds to an updated delay every 2 ms.
+        :type delay_rate: float
+        
+        :return: Spectrum index at which new delays will be loaded. This should either be equal to
+            ``load_sample``, if provided, or will represent the first sample boundary after ``load_time``.
+        :rtype: int
+        """
+        raise NotImplementedError
+
     def adc_get_samples(self):
         """
         Get a block of samples from both ADC inputs, captured simultaneously.

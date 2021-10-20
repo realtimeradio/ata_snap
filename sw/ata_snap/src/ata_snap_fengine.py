@@ -496,7 +496,7 @@ class AtaSnapFengine(object):
         """
         for delay in delays:
             assert delay <= MAX_SAMPLE_DELAY, "Delay must be between 0 and %d" % (MAX_SAMPLE_DATA - 1)
-        self.fpga.write_int('delay_ctrl', 0) # disable loads while we configure registers
+        self.fpga.write_int(self._pipeline_get_regname('delay_ctrl'), 0) # disable loads while we configure registers
         if load_time != -1:
             # compute load times
             if sync_time is None:
@@ -522,18 +522,18 @@ class AtaSnapFengine(object):
             load_fpga_clocks = load_adc_clocks // self.adc_demux_factor
             if load_fpga_clocks >= 2**64:
                 self.logger.error("Delay load time is too far in the future! (%.2f seconds)" % load_secs)
-            self.fpga.write_int("delay_target_load_time_msb", load_fpga_clocks >> 32)
-            self.fpga.write_int("delay_target_load_time_lsb", load_fpga_clocks & 0xffffffff)
+            self.fpga.write_int(self._pipeline_get_regname("delay_target_load_time_msb"), load_fpga_clocks >> 32)
+            self.fpga.write_int(self._pipeline_get_regname("delay_target_load_time_lsb"), load_fpga_clocks & 0xffffffff)
 
         for pol, delay in enumerate(delays):
             self.fpga.write_int('delay_delay%d_delay' % pol, delay)
 
         if load_time != -1:
-            self.fpga.write_int('delay_ctrl', 2) # disable immediate and enable timed load
+            self.fpga.write_int(self._pipeline_get_regname('delay_ctrl'), 2) # disable immediate and enable timed load
             return load_spectra
         else:
-            self.fpga.write_int('delay_ctrl', 1) # Load delay
-            self.fpga.write_int('delay_ctrl', 0) # disable all loads
+            self.fpga.write_int(self._pipeline_get_regname('delay_ctrl'), 1) # Load delay
+            self.fpga.write_int(self._pipeline_get_regname('delay_ctrl'), 0) # disable all loads
             return None
 
     def get_delay(self, pol):
@@ -546,7 +546,7 @@ class AtaSnapFengine(object):
         :return: delay, in units of ADC clock cycles
         :rtype: int
         """
-        return self.fpga.read_uint('delay_delay%d_loaded' % pol)
+        return self.fpga.read_uint(self._pipeline_get_regname('delay_delay%d_loaded' % pol))
 
     def get_pending_delay(self, pol):
         """
@@ -562,9 +562,9 @@ class AtaSnapFengine(object):
           seconds since the delays were loaded.
         :rtype: (int, float)
         """
-        delay = self.fpga.read_uint('delay_delay%d_delay' % pol)
-        load_clocks = self.fpga.read_uint('delay_time_to_load_msb') << 32
-        load_clocks += self.fpga.read_uint('delay_time_to_load_lsb')
+        delay = self.fpga.read_uint(self._pipeline_get_regname('delay_delay%d_delay' % pol))
+        load_clocks = self.fpga.read_uint(self._pipeline_get_regname('delay_time_to_load_msb')) << 32
+        load_clocks += self.fpga.read_uint(self._pipeline_get_regname('delay_time_to_load_lsb'))
         if load_clocks > 2**63:
             load_clocks -= 2**64
         load_secs = load_clocks / self.sync_get_fpga_clk_pps_interval()
