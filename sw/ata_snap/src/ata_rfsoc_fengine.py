@@ -154,7 +154,12 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             spectrum of Xconj(Y).
         :rtype: numpy.array
         """
-        SCALE = 2**42 # Vacc number representation
+        # These scales reflect the fact that the 8-bit design has a 25-bit FFT.
+        # The scales here aren't intrisically related to the 4- or 8-bit width of output data.
+        if self.is_8_bit:
+            SCALE = 2**48 # Vacc number representation
+        else:
+            SCALE = 2**42 # Vacc number representation
         if len(self.fpga.snapshots) == 0:
             raise RuntimeError("Please run AtaSnapFengine.program(...) or "
                     "AtaSnapFengine.fpga.get_system_information(...) with the "
@@ -201,8 +206,12 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             xy_3_r = d3i[0::2]
             xy_3_i = d3i[1::2]
             xy = np.zeros(self.n_chans_f, dtype=np.complex)
-            # Do final FFT serial reorder in software
-            chan_map = np.arange(self.n_chans_f // 4).reshape(self.n_chans_f // 4 // 4, 4).transpose().reshape(self.n_chans_f // 4)
+            if not self.is_8_bit:
+                #Only 8 bit firmware has FFT reordering on the FPGA
+                # Do final FFT serial reorder in software
+                chan_map = np.arange(self.n_chans_f // 4).reshape(self.n_chans_f // 4 // 4, 4).transpose().reshape(self.n_chans_f // 4)
+            else:
+                chan_map = np.arange(self.n_chans_f // 4)
             for i in range(self.n_chans_f // 4):
                 xy[4*i]   = xy_0_r[chan_map[i]] + 1j*xy_0_i[chan_map[i]]
                 xy[4*i+1] = xy_1_r[chan_map[i]] + 1j*xy_1_i[chan_map[i]]
