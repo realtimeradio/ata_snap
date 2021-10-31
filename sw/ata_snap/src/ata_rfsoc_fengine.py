@@ -27,7 +27,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
     pps_source = "board" #: After programming set the PPS source to the front panel input
     n_interfaces = 1     #: Number of available 10GbE interfaces
     n_ants_per_board = 8 #: Number of antennas on a board
-    n_chans_per_block = 32 #: Number of channels reordered in a single word
+    n_chans_per_block_4bit = 32 #: Number of channels reordered in a single word (with 4 bit data)
     packetizer_granularity = 2**5 # Number of words per packetizer step
     tge_n_bytes_per_word = 64 # 64 1-byte time samples per 512-bit 100GbE output.
     def __init__(self, host, feng_id=0, pipeline_id=0):
@@ -53,17 +53,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             self.spec_set_pipeline_id()
         except:
             pass
-        if 'nchans' in self.fpga.listdev():
-            self.n_chans_f = self.fpga.read_uint('nchans')
-        if 'is_8_bit' in self.fpga.listdev():
-            self.is_8_bit = bool(self.fpga.read_uint('is_8_bit'))
-        else:
-            self.is_8_bit = False
-        if self.is_8_bit:
-            self.n_chans_per_block = self.n_chans_per_block // 2
-            self.n_ants_per_output = self.n_ants_per_board // 2 #: Number of antennas per 100G link
-        else:
-            self.n_ants_per_output = self.n_ants_per_board #: Number of antennas per 100G link
+        self._read_parameters_from_fpga()
         self._calc_output_ids()
 
         # If the board is programmed, try to get the fpg data
@@ -72,6 +62,21 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         #        self.fpga.transport.get_meta()
         #    except:
         #        self.logging.warning("Tried to get fpg meta-data from a running board and failed!")
+    
+    def _read_parameters_from_fpga(self):
+        if 'nchans' in self.fpga.listdev():
+            self.n_chans_f = self.fpga.read_uint('nchans')
+        if 'is_8_bit' in self.fpga.listdev():
+            self.is_8_bit = bool(self.fpga.read_uint('is_8_bit'))
+        else:
+            self.is_8_bit = False
+        
+        if self.is_8_bit:
+            self.n_chans_per_block = self.n_chans_per_block_4bit // 2
+            self.n_ants_per_output = self.n_ants_per_board // 2 #: Number of antennas per 100G link
+        else:
+            self.n_chans_per_block = self.n_chans_per_block_4bit
+            self.n_ants_per_output = self.n_ants_per_board #: Number of antennas per 100G link
 
     def _calc_output_ids(self):
         self.output_id = self.pipeline_id // self.n_ants_per_output
@@ -99,9 +104,10 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         :type fpgfile: str
         """
         self.fpga.upload_to_ram_and_program(fpgfile)
-        self.fpga.get_system_information(fpgfile)
         self.sync_select_input(self.pps_source)
         self.spec_set_pipeline_id()
+        self._read_parameters_from_fpga()
+        self._calc_output_ids()
 
     def spec_set_pipeline_id(self):
         if self._pipeline_get_regname("corr_feng_id") in self.fpga.listdev():
@@ -487,10 +493,9 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         MAX_JUMBO_PKT_BYTES = 8192
 
         max_chans_per_packet = 8*MAX_JUMBO_PKT_BYTES // (2*n_bits) // self.n_times_per_packet // 2
-        self.logger.info("Max channels per packet: %d" % max_chans_per_packet)
         if nchans_per_packet_limit is not None:
             max_chans_per_packet = min(max_chans_per_packet, nchans_per_packet_limit)
-            self.logger.info("Max channels per packet further limited to: %d" % max_chans_per_packet)
+        self.logger.info("Max channels per packet: %d" % max_chans_per_packet)
 
         # Figure out the channel granularity of the packetizer. This operates
         # in blocks of packetizer_granularity 64-bit words.
@@ -655,7 +660,10 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # send to that address.
         rv = {}
         for dn, d in enumerate(dests):
-            rv[d] = {'start_chan':start_chan + dn*n_chans_per_destination, 'end_chan':start_chan + (dn+1)*n_chans_per_destination}
+            if d in rv:
+                rv[d]['end_chan'] = start_chan + (dn+1)*n_chans_per_packet
+            else:
+                rv[d] = {'start_chan':start_chan + dn*n_chans_per_packet, 'end_chan':start_chan + (dn+1)*n_chans_per_packet}
         return rv
 
     def _populate_headers(self, interface, headers, offset=0):
