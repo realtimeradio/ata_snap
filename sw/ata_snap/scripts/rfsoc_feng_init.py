@@ -49,14 +49,16 @@ def run(host, fpgfile, configfile,
     assert len(feng_ids) <= 8, "At most 8 F-Engine IDs supported"
     assert len(pipeline_ids) == len(feng_ids), "pipeline_ids and feng_ids should have the same length"
     cfpga = casperfpga.CasperFpga(host, transport=casperfpga.KatcpTransport)
+    
+    if not skipprog:
+        logger.info("Programming %s with %s" % (host, fpgfile))
+        ata_rfsoc_fengine.AtaRfsocFengine(cfpga, feng_id=0, pipeline_id=0).program(fpgfile) # use a dummy object for programming
+
     logger.info("Connected")
     for pipeline_id, feng_id in zip(pipeline_ids, feng_ids):
         fengs += [ata_rfsoc_fengine.AtaRfsocFengine(cfpga, feng_id=feng_id, pipeline_id=pipeline_id)]
 
-    if not skipprog:
-        logger.info("Programming %s with %s" % (host, fpgfile))
-        fengs[0].program(fpgfile)
-    else:
+    if skipprog:
         logger.info("Skipping programming because the --skipprog flag was used")
         # If we're not programming we need to load the FPG information
         fengs[0].fpga.get_system_information(fpgfile)
@@ -136,7 +138,7 @@ def run(host, fpgfile, configfile,
             dests_is_antgroup_list_of_dests = isinstance(dests[0], list)
             chans_per_packet_limit = voltage_config['limit_chans_per_packet'] if 'limit_chans_per_packet'  in voltage_config else None
             logger.info('Voltage output sending channels %d to %d' % (start_chan, start_chan+n_chans-1))
-            logger.info('Destination IPs: %s' %dests)
+            logger.info('Destination IPs for %d FEngines: %s' %(len(fengs), dests))
             logger.info('Using %d interfaces' % n_interfaces)
             for fn, feng in enumerate(fengs):
                 dest_port = config['dest_port'][fn] if isinstance(config['dest_port'], list) else config['dest_port']
@@ -157,7 +159,7 @@ def run(host, fpgfile, configfile,
                 fengs[-1].feng_id = -1
                 fengs[-1].pipeline_id = pipeline_id
                 fengs[-1]._calc_output_ids()
-                fengs[-1].select_output_channels(start_chan, n_chans, feng_dests, n_interfaces=n_interfaces, dest_ports=dest_port, blank=not noblank, nchans_per_packet_limit=chans_per_packet_limit)
+                print(fengs[-1].select_output_channels(start_chan, n_chans, feng_dests, n_interfaces=n_interfaces, dest_ports=dest_port, blank=not noblank, nchans_per_packet_limit=chans_per_packet_limit))
             fengs[-1].pipeline_id = orig_pipeline_id
             fengs[-1].feng_id = orig_feng_id
             fengs[-1]._calc_output_ids()
