@@ -53,7 +53,11 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             self.spec_set_pipeline_id()
         except:
             pass
-        self._read_parameters_from_fpga()
+        try:
+            # fpga.listdev() can fail if the board has no image
+            self._read_parameters_from_fpga()
+        except:
+            pass
         self._calc_output_ids()
 
         # If the board is programmed, try to get the fpg data
