@@ -526,7 +526,7 @@ class AtaSnapFengine(object):
             self.fpga.write_int(self._pipeline_get_regname("delay_target_load_time_lsb"), load_fpga_clocks & 0xffffffff)
 
         for pol, delay in enumerate(delays):
-            self.fpga.write_int('delay_delay%d_delay' % pol, delay)
+            self.fpga.write_int(self._pipeline_get_regname('delay_delay%d_delay') % pol, delay)
 
         if load_time != -1:
             self.fpga.write_int(self._pipeline_get_regname('delay_ctrl'), 2) # disable immediate and enable timed load
