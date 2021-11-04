@@ -229,7 +229,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             xy = grab(v[0])
             return xy
 
-    def set_delay_tracking(self, delay, delay_rate, load_time=None, load_sample=None):
+    def set_delay_tracking(self, delays, delay_rates, load_time=None, load_sample=None, clock_rate_hz=2048000000):
         """
         Set this F-engine to track a given delay curve.
 
@@ -241,23 +241,54 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             ``load_time`` is not provided.
         :type load_sample: int
 
-        :param delay: Delay, in nanoseconds, which should be applied at the appropriate time.
+        :param delays: 2-tuple of delays for X and Y polarizations. Each value is 
+            the delay, in nanoseconds, which should be applied at the appropriate time.
             Whole ADC sample delays are implemented using a coarse delay, while sub-sample
             delays are implemented as a post-FFT phase rotation.
-        :type delay: float
+        :type delays: float
 
-        :param delay rate: Delay rate, in nanoseconds per second. The incremental delay
+        :param delay rates: 2-tuple of delay rates for X and Y polarizations. Each value is
+            the delay rate, in nanoseconds per second. The incremental delay
             which should be added to the current delay each second after the given load time.
             Delay rate is converted from nanoseconds-per-second to nanoseconds-per-1024-spectra,
             which is the update cadence of the underlying firmware.
             For a 2.048GHz sampling rate, and 4096-point FFT, this
             corresponds to an updated delay every 2 ms.
         :type delay_rate: float
+
+        :param clock_rate_hz: ADC clock rate in Hz. If None, the clock rate will be computed from
+            the observed PPS interval, which could fail if the PPS is unstable or not present.
+        :type clock_rate_hz: int
+
         
         :return: Spectrum index at which new delays will be loaded. This should either be equal to
             ``load_sample``, if provided, or will represent the first sample boundary after ``load_time``.
         :rtype: int
         """
+        if load_time is None:
+            load_time = time.time() + 5 # 5 seconds in the future
+        delay_samples = np.array(delays) * 1e9 / clock_rate_hz
+        assert np.all(delay_samples >= 0)
+        delay_samples_int = np.array(np.floor(delay_samples), dtype=int)
+        delay_samples_frac = delay_samples % 1
+        delay_rates = np.array(delay_rates)
+        assert np.all(np.abs(delay_rates < 1))
+        self.logger.info("Setting delays to %s at time %s" % (delays, time.ctime(load_time)))
+        load_time_spectra = self.set_delays(delays, load_time=load_time, clock_rate_hz=clock_rate_hz)
+        self.logger.info("Firmware reports delays will be loaded at spectra %d" % load_time_spectra)
+        # Now load phase rotators
+        self.fpga.write_int(self._pipeline_get_regname('phase_rotate_ctrl'), 0) # Disable load during configuration
+        for i in range(2):
+            delay_lsb = int(delay_samples_frac[i] * 2**31)
+            delay_rate = int(delay_rates[i] * 2**31)
+            self.fpga.write_int(self._pipeline_get_regname('phase_rotate_delay_lsb%d' % i), delay_lsb)
+            self.fpga.write_int(self._pipeline_get_regname('phase_rotate_delay_rate%d' % i), delay_rate)
+        # Load arm logic
+        load_fpga_clocks = load_time_spectra * 2*self.n_chans_f // self.adc_demux_factor
+        self.fpga.write_int(self._pipeline_get_regname('phase_rotate_target_load_time_msb'), load_fpga_clocks >> 32)
+        self.fpga.write_int(self._pipeline_get_regname('phase_rotate_target_load_time_lsb'), load_fpga_clocks & 0xffffffff)
+        self.fpga.write_int(self._pipeline_get_regname('phase_rotate_ctrl'), 2) # enable timed load
+        return load_time_spectra
         raise NotImplementedError
 
     def adc_get_samples(self):
@@ -576,12 +607,11 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # send to that address.
         rv = {}
         for dn, d in enumerate(dests):
-            print("start chan", start_chan)
-            print("offset chan", start_chan + dn*n_chans_per_destination)
-            print("end chan", start_chan + (dn+1)*n_chans_per_destination)
-            print(list(range(start_chan + dn*n_chans_per_destination, start_chan + (dn+1)*n_chans_per_destination)))
-            rv[d] = list(range(start_chan + dn*n_chans_per_destination,
-                          start_chan + (dn+1)*n_chans_per_destination))
+            print("destination", d)
+            print("offset chan", start_chan + dn*n_chans_per_packet)
+            print("end chan", start_chan + (dn+1)*n_chans_per_packet)
+            rv[d] = list(range(start_chan + dn*n_chans_per_packet,
+                          start_chan + (dn+1)*n_chans_per_packet))
         return rv
 
     def _populate_headers(self, interface, headers, offset=0):
