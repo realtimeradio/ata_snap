@@ -265,31 +265,34 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             ``load_sample``, if provided, or will represent the first sample boundary after ``load_time``.
         :rtype: int
         """
+        FINE_DELAY_LOAD_PERIOD = 4 # It takes 4 spectra to compute and load delays
         if load_time is None:
             load_time = time.time() + 5 # 5 seconds in the future
-        delay_samples = np.array(delays) * 1e9 / clock_rate_hz
+        delay_samples = np.array(delays) * 1e-9 / (1. / clock_rate_hz)
         assert np.all(delay_samples >= 0)
         delay_samples_int = np.array(np.floor(delay_samples), dtype=int)
         delay_samples_frac = delay_samples % 1
         delay_rates = np.array(delay_rates)
         assert np.all(np.abs(delay_rates < 1))
-        self.logger.info("Setting delays to %s at time %s" % (delays, time.ctime(load_time)))
-        load_time_spectra = self.set_delays(delays, load_time=load_time, clock_rate_hz=clock_rate_hz)
+        self.logger.info("Setting delays to %s ns at time %s" % (delays, time.ctime(load_time)))
+        self.logger.info("Integer sample delays: %s" % (delay_samples_int))
+        self.logger.info("Fractional sample delays: %s" % (delay_samples_frac))
+        load_time_spectra = self.set_delays(delay_samples_int, load_time=load_time, clock_rate_hz=clock_rate_hz, load_resolution=FINE_DELAY_LOAD_PERIOD)
         self.logger.info("Firmware reports delays will be loaded at spectra %d" % load_time_spectra)
         # Now load phase rotators
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_ctrl'), 0) # Disable load during configuration
         for i in range(2):
-            delay_lsb = int(delay_samples_frac[i] * 2**31)
+            delay_lsb = int(delay_samples_frac[i] * 2**32)
             delay_rate = int(delay_rates[i] * 2**31)
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_delay_lsb%d' % i), delay_lsb)
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_delay_rate%d' % i), delay_rate)
         # Load arm logic
-        load_fpga_clocks = load_time_spectra * 2*self.n_chans_f // self.adc_demux_factor
+        load_fpga_clocks = (load_time_spectra - FINE_DELAY_LOAD_PERIOD) * 2*self.n_chans_f // self.adc_demux_factor
+        load_fpga_clocks = load_fpga_clocks + 1 # FIXME: compensate for firmware bug
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_target_load_time_msb'), load_fpga_clocks >> 32)
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_target_load_time_lsb'), load_fpga_clocks & 0xffffffff)
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_ctrl'), 2) # enable timed load
         return load_time_spectra
-        raise NotImplementedError
 
     def adc_get_samples(self):
         """
