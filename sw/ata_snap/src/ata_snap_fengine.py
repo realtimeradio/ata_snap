@@ -471,7 +471,7 @@ class AtaSnapFengine(object):
             self.sync_manual_trigger()
         return sync_time
 
-    def set_delays(self, delays, load_time=-1, clock_rate_hz=2048000000, sync_time=None):
+    def set_delays(self, delays, load_time=-1, clock_rate_hz=2048000000, sync_time=None, load_resolution=1):
         """
         Set the delay, in units of ADC clock cycles, of a pipeline input.
 
@@ -488,6 +488,10 @@ class AtaSnapFengine(object):
         :param sync_time: The time, in UNIX seconds, at which the F-engine was last synchronized.
             If None, the sync time will be queried from the board using the `get_last_sync_time()` method.
         :type sync_time: int
+
+        :param load_resolution: Delays will be loaded on a spectrum ID which is an integer multiple of 
+            ``load_resolution``
+        :type load_resolution: int
 
         :return: None, unless load_time is provided. In this case return the spectrum ID (the spectrum
             count, relative to the F-engine sync time) at which the requested delays will be loaded
@@ -518,8 +522,11 @@ class AtaSnapFengine(object):
             load_adc_clocks = int(load_adc_clocks) - (int(load_adc_clocks) % (2*self.n_chans_f))
             # Spectrum number
             load_spectra = load_adc_clocks // (2*self.n_chans_f)
+            # Round to appropriate resolution
+            load_spectra = load_spectra - (load_spectra % load_resolution)
             # FPGA clocks after sync
             load_fpga_clocks = load_adc_clocks // self.adc_demux_factor
+            load_fpga_clocks = load_fpga_clocks + 1 # FIXME: compensate for firmware bug
             if load_fpga_clocks >= 2**64:
                 self.logger.error("Delay load time is too far in the future! (%.2f seconds)" % load_secs)
             self.fpga.write_int(self._pipeline_get_regname("delay_target_load_time_msb"), load_fpga_clocks >> 32)
