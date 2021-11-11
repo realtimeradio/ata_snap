@@ -229,7 +229,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             xy = grab(v[0])
             return xy
 
-    def set_delay_tracking(self, delays, delay_rates, load_time=None, load_sample=None, clock_rate_hz=2048000000):
+    def set_delay_tracking(self, delays, delay_rates, phases, phase_rates, load_time=None, load_sample=None, clock_rate_hz=2048000000):
         """
         Set this F-engine to track a given delay curve.
 
@@ -247,14 +247,23 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             delays are implemented as a post-FFT phase rotation.
         :type delays: float
 
-        :param delay rates: 2-tuple of delay rates for X and Y polarizations. Each value is
+        :param delay_rates: 2-tuple of delay rates for X and Y polarizations. Each value is
             the delay rate, in nanoseconds per second. The incremental delay
-            which should be added to the current delay each second after the given load time.
-            Delay rate is converted from nanoseconds-per-second to nanoseconds-per-1024-spectra,
-            which is the update cadence of the underlying firmware.
-            For a 2.048GHz sampling rate, and 4096-point FFT, this
-            corresponds to an updated delay every 2 ms.
-        :type delay_rate: float
+            which should be added to the current delay each second.
+            Internally, delay rate is converted from nanoseconds-per-second to
+            samples-per-spectra. Firmware delays are updated every 4 spectra.
+        :type delay_rates: float
+
+        :param phases: 2-tuple of phases for X and Y polarizations. Each value is the phase, in radians,
+            which should be applied at the appropriate time.
+        :type phases: float
+
+        :param phase_rates: 2-tuple of phase rates for X and Y polarizations. Each value is the
+            phase rate, in radians per second. This is the incremental phase which should be added
+            to the current phase every second.
+            Internally, phase rate is converted from radians-per-second to radians-per-spectra. 
+            Firmware phases are updated every 4 spectra.
+        :type phase_rates: float
 
         :param clock_rate_hz: ADC clock rate in Hz. If None, the clock rate will be computed from
             the observed PPS interval, which could fail if the PPS is unstable or not present.
@@ -266,14 +275,27 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         :rtype: int
         """
         FINE_DELAY_LOAD_PERIOD = 4 # It takes 4 spectra to compute and load delays
+        RATE_SCALE_FACTOR = 2**4   # The firmware divides rates down by this amount
         if load_time is None:
             load_time = time.time() + 5 # 5 seconds in the future
+        if load_sample is not None:
+            raise NotImplementedError
         delay_samples = np.array(delays) * 1e-9 / (1. / clock_rate_hz)
         assert np.all(delay_samples >= 0)
         delay_samples_int = np.array(np.floor(delay_samples), dtype=int)
         delay_samples_frac = delay_samples % 1
-        delay_rates = np.array(delay_rates)
-        assert np.all(np.abs(delay_rates < 1))
+        # Massage rates into samples-per-spectra (lots of redundant use of clock rate...)
+        delay_rates_samples_per_sec = np.array(delay_rates) * 1e-9 /  (1. / clock_rate_hz)
+        delay_rates_samples_per_spec = delay_rates_samples_per_sec * (2*self.n_chans_f) / clock_rate_hz
+        # Convert phases to range +/- pi and normalize
+        phases = np.array(phases) / np.pi # normalize to fractions of pi
+        phases = ((phases + 1) % 2) - 1   # place in range +/- 1
+        # Convert phase rates to fractions of pi per spectra
+        phase_rates = np.array(phase_rates) / np.pi # normalize to fractions of pi
+        phase_rates = ((phases + 1) % 2) - 1        # place in range +/- 1
+        phase_rates_per_spec = phase_rates * (2*self.n_chans_f) / clock_rate_hz
+        assert np.all(np.abs(delay_rates_samples_per_spec < (1./(RATE_SCALE_FACTOR * FINE_DELAY_LOAD_PERIOD))))
+        assert np.all(np.abs(phase_rates_per_spec < (1./(RATE_SCALE_FACTOR * FINE_DELAY_LOAD_PERIOD))))
         self.logger.info("Setting delays to %s ns at time %s" % (delays, time.ctime(load_time)))
         self.logger.info("Integer sample delays: %s" % (delay_samples_int))
         self.logger.info("Fractional sample delays: %s" % (delay_samples_frac))
@@ -283,9 +305,13 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_ctrl'), 0) # Disable load during configuration
         for i in range(2):
             delay_lsb = int(delay_samples_frac[i] * 2**32)
-            delay_rate = int(delay_rates[i] * 2**31)
+            delay_rate = int(delay_rates_samples_per_spec[i] * 2**31 * RATE_SCALE_FACTOR * FINE_DELAY_LOAD_PERIOD)
+            phase = int(phases[i] * 2**31)
+            phase_rate = int(phase_rates_per_spec[i] * 2**31 * RATE_SCALE_FACTOR * FINE_DELAY_LOAD_PERIOD)
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_delay_lsb%d' % i), delay_lsb)
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_delay_rate%d' % i), delay_rate)
+            self.fpga.write_int(self._pipeline_get_regname('phase_rotate_phase%d' % i), phase)
+            self.fpga.write_int(self._pipeline_get_regname('phase_rotate_phase_rate%d' % i), phase_rate)
         # Load arm logic
         load_fpga_clocks = (load_time_spectra - FINE_DELAY_LOAD_PERIOD) * 2*self.n_chans_f // self.adc_demux_factor
         load_fpga_clocks = load_fpga_clocks + 1 # FIXME: compensate for firmware bug
