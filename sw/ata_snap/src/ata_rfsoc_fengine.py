@@ -307,7 +307,11 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             delay_lsb = int(delay_samples_frac[i] * 2**32)
             delay_rate = int(delay_rates_samples_per_spec[i] * 2**31 * RATE_SCALE_FACTOR * FINE_DELAY_LOAD_PERIOD)
             phase = int(phases[i] * 2**31)
+            if phase >= 2**31:
+                phase = 2**31 - 1
             phase_rate = int(phase_rates_per_spec[i] * 2**31 * RATE_SCALE_FACTOR * FINE_DELAY_LOAD_PERIOD)
+            if phase_rate >= 2**31:
+                phase_rate = 2**31 - 1
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_delay_lsb%d' % i), delay_lsb)
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_delay_rate%d' % i), delay_rate)
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_phase%d' % i), phase)
