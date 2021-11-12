@@ -13,6 +13,7 @@ RXBUF = 8500
 
 def unpack(pkt):
     header = struct.unpack(">BBHHHQ", pkt[0:16])
+    d = np.frombuffer(pkt[16:], dtype=">B")
     h = {}
     h['timestamp'] = header[5]
     h['feng_id'] = header[4]
@@ -20,16 +21,6 @@ def unpack(pkt):
     h['n_chans'] = header[2]
     h['type']    = header[1]
     h['version'] = header[0]
-    if h['type'] & 0b10:
-        d = np.fromstring(pkt[16:], dtype=">B")
-        d = d[0::2] + 1j*d[1::2]
-        #d = np.fromstring(pkt[16:], dtype=">H")
-        #dr = (d >> 8) & 0xff
-        #di = d & 0xff
-        #d4bit = ((dr >> 4) << 4) + (di >> 4)
-        #d = d4bit
-    else:
-        d = np.fromstring(pkt[16:], dtype=">B")
     #h['feng_id'] = header[0] & 0xffff
     #h['chan']    = (header[0] >> 16) & 0xffff
     #h['n_chans'] = (header[0] >> 32) & 0xffff
@@ -45,6 +36,8 @@ parser.add_argument('-i', dest='ip', type=str, default='100.100.10.1',
                     help ='IP address on which to receive')
 parser.add_argument('-p', dest='port', type=int, default=10000,
                     help ='UDP port on which to receive')
+parser.add_argument('-f', dest='fname', type=str, default=None,
+                    help ='Filename in which to dump packets')
 
 args = parser.parse_args()
 
@@ -54,22 +47,33 @@ sock.bind((args.ip, args.port))
 print("Receiving on %s:%d" % (args.ip, args.port))
 
 starttime = time.time()
-
+treport = time.time()
+last_t = 0
+n = 0
+if args.fname is not None:
+    print("Writing to file %s" % args.fname)
+    fh = open(args.fname, 'wb')
 try:
     tick = time.time()
     while(True):
         data = sock.recv(RXBUF)
-        h, x, y = unpack(data)
-        print(h)
-        print('X:')
-        for i in range(8):
-            for j in range(16):
-                print(x[16*i + j], end=' ')
-            print()
-        print('X:')
-        for i in range(8):
-            for j in range(16):
-                print(y[16*i + j], end=' ')
+        fh.write(data)
+        if (n % 100000) == 0:
+            h, x, y = unpack(data)
+            this_t = h['timestamp']
+            print(time.ctime(), "Packets received:", n, "This packet:", this_t, "(Diff: %d)" % (this_t - last_t))
+            last_t = this_t
+        n = n+1
+        if args.fname is None:
+            h, x, y = unpack(data)
+            print(h)
+            for i in range(32):
+                print(x[i], end=' ')
+            print('|', end=' ')
+            for i in range(32):
+                print(y[i], end=' ')
             print()
 except KeyboardInterrupt:
+    if args.fname is not None:
+        fh.close()
     pass
