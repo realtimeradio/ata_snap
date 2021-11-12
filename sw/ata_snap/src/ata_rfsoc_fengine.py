@@ -291,14 +291,20 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         phases = np.array(phases) / np.pi # normalize to fractions of pi
         phases = ((phases + 1) % 2) - 1   # place in range +/- 1
         # Convert phase rates to fractions of pi per spectra
-        phase_rates = np.array(phase_rates) / np.pi # normalize to fractions of pi
-        phase_rates = ((phase_rates + 1) % 2) - 1        # place in range +/- 1
-        phase_rates_per_spec = phase_rates * (2*self.n_chans_f) / clock_rate_hz
+        self.logger.info("Phase rates [radians per sec]: %s" % phase_rates)
+        phase_rates_per_spec = np.array(phase_rates) * (2*self.n_chans_f) / clock_rate_hz
+        self.logger.info("Phase rates [radians per spectrum]: %s" % phase_rates_per_spec)
+        phase_rates_per_spec = phase_rates_per_spec / np.pi # normalize to fractions of pi
+        self.logger.info("Phase rates [pis per spectrum]: %s" % phase_rates_per_spec)
+        phase_rates_per_spec = ((phase_rates_per_spec + 1) % 2) - 1        # place in range +/- 1
+        self.logger.info("Wrapped Phase rates [pis per spectrum]: %s" % phase_rates_per_spec)
         assert np.all(np.abs(delay_rates_samples_per_spec < (1./(RATE_SCALE_FACTOR * FINE_DELAY_LOAD_PERIOD))))
         assert np.all(np.abs(phase_rates_per_spec < (1./(RATE_SCALE_FACTOR * FINE_DELAY_LOAD_PERIOD))))
         self.logger.info("Setting delays to %s ns at time %s" % (delays, time.ctime(load_time)))
         self.logger.info("Integer sample delays: %s" % (delay_samples_int))
         self.logger.info("Fractional sample delays: %s" % (delay_samples_frac))
+        self.logger.info("Phase being set to: %s" % phases)
+        self.logger.info("Phase rates being set to: %s" % phase_rates_per_spec)
         load_time_spectra = self.set_delays(delay_samples_int, load_time=load_time, clock_rate_hz=clock_rate_hz, load_resolution=FINE_DELAY_LOAD_PERIOD)
         self.logger.info("Firmware reports delays will be loaded at spectra %d" % load_time_spectra)
         # Now load phase rotators
@@ -318,7 +324,6 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_phase_rate%d' % i), phase_rate)
         # Load arm logic
         load_fpga_clocks = (load_time_spectra - FINE_DELAY_LOAD_PERIOD) * 2*self.n_chans_f // self.adc_demux_factor
-        load_fpga_clocks = load_fpga_clocks
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_target_load_time_msb'), load_fpga_clocks >> 32)
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_target_load_time_lsb'), load_fpga_clocks & 0xffffffff)
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_ctrl'), 2) # enable timed load
