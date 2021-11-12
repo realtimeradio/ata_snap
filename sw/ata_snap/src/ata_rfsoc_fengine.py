@@ -292,7 +292,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         phases = ((phases + 1) % 2) - 1   # place in range +/- 1
         # Convert phase rates to fractions of pi per spectra
         phase_rates = np.array(phase_rates) / np.pi # normalize to fractions of pi
-        phase_rates = ((phases + 1) % 2) - 1        # place in range +/- 1
+        phase_rates = ((phase_rates + 1) % 2) - 1        # place in range +/- 1
         phase_rates_per_spec = phase_rates * (2*self.n_chans_f) / clock_rate_hz
         assert np.all(np.abs(delay_rates_samples_per_spec < (1./(RATE_SCALE_FACTOR * FINE_DELAY_LOAD_PERIOD))))
         assert np.all(np.abs(phase_rates_per_spec < (1./(RATE_SCALE_FACTOR * FINE_DELAY_LOAD_PERIOD))))
