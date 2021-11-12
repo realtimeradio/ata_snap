@@ -38,6 +38,8 @@ parser.add_argument('-p', dest='port', type=int, default=10000,
                     help ='UDP port on which to receive')
 parser.add_argument('-f', dest='fname', type=str, default=None,
                     help ='Filename in which to dump packets')
+parser.add_argument('-t', dest='recordtime', type=int, default=20,
+                    help ='Number of seconds to record for')
 
 args = parser.parse_args()
 
@@ -57,12 +59,13 @@ try:
     tick = time.time()
     while(True):
         data = sock.recv(RXBUF)
-        fh.write(data)
         if (n % 100000) == 0:
             h, x, y = unpack(data)
             this_t = h['timestamp']
             print(time.ctime(), "Packets received:", n, "This packet:", this_t, "(Diff: %d)" % (this_t - last_t))
             last_t = this_t
+            if time.time() > (starttime + args.recordtime):
+                break
         n = n+1
         if args.fname is None:
             h, x, y = unpack(data)
@@ -73,7 +76,10 @@ try:
             for i in range(32):
                 print(y[i], end=' ')
             print()
+        else:
+            fh.write(data)
 except KeyboardInterrupt:
-    if args.fname is not None:
-        fh.close()
-    pass
+    break
+
+if args.fname is not None:
+    fh.close()
