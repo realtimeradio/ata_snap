@@ -79,7 +79,7 @@ try:
         else:
             fh.write(data)
 except KeyboardInterrupt:
-    break
+    pass
 
 if args.fname is not None:
     fh.close()
