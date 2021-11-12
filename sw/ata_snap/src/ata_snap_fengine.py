@@ -526,7 +526,7 @@ class AtaSnapFengine(object):
             load_spectra = load_spectra - (load_spectra % load_resolution)
             # FPGA clocks after sync
             load_fpga_clocks = load_adc_clocks // self.adc_demux_factor
-            load_fpga_clocks = load_fpga_clocks + 1 # FIXME: compensate for firmware bug
+            load_fpga_clocks = load_fpga_clocks
             if load_fpga_clocks >= 2**64:
                 self.logger.error("Delay load time is too far in the future! (%.2f seconds)" % load_secs)
             self.fpga.write_int(self._pipeline_get_regname("delay_target_load_time_msb"), load_fpga_clocks >> 32)

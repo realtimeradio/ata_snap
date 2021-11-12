@@ -318,7 +318,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_phase_rate%d' % i), phase_rate)
         # Load arm logic
         load_fpga_clocks = (load_time_spectra - FINE_DELAY_LOAD_PERIOD) * 2*self.n_chans_f // self.adc_demux_factor
-        load_fpga_clocks = load_fpga_clocks + 1 # FIXME: compensate for firmware bug
+        load_fpga_clocks = load_fpga_clocks
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_target_load_time_msb'), load_fpga_clocks >> 32)
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_target_load_time_lsb'), load_fpga_clocks & 0xffffffff)
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_ctrl'), 2) # enable timed load
