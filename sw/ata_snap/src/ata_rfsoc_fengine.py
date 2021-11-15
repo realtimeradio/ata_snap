@@ -233,12 +233,12 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         """
         Set this F-engine to track a given delay curve.
 
-        :param load_time: Unix time at which delay should be applied. If None, a load_sample
-            should be given.
+        :param load_time: Unix time at which delay should be applied. If None, values are loaded
+            5 seconds from now.
         :type load_time: float
 
         :param load_sample: Spectrum index at which delay should be applied. Used only if
-            ``load_time`` is not provided.
+            ``load_time`` is not provided. NOT YET IMPLEMENTED
         :type load_sample: int
 
         :param delays: 2-tuple of delays for X and Y polarizations. Each value is 
@@ -282,8 +282,8 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             raise NotImplementedError
         delay_samples = np.array(delays) * 1e-9 / (1. / clock_rate_hz)
         assert np.all(delay_samples >= 0)
-        delay_samples_int = np.array(np.floor(delay_samples), dtype=int)
-        delay_samples_frac = delay_samples % 1
+        delay_samples_int = np.round(delay_samples).astype(int)
+        delay_samples_frac = delay_samples - delay_samples_int
         # Massage rates into samples-per-spectra (lots of redundant use of clock rate...)
         delay_rates_samples_per_sec = np.array(delay_rates) * 1e-9 /  (1. / clock_rate_hz)
         delay_rates_samples_per_spec = delay_rates_samples_per_sec * (2*self.n_chans_f) / clock_rate_hz
