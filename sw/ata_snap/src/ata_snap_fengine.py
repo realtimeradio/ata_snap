@@ -1326,7 +1326,7 @@ class AtaSnapFengine(object):
             self._populate_headers(interface, headers)
         
 
-    def select_output_channels(self, start_chan, n_chans, dests=['0.0.0.0'], n_interfaces=None, n_bits=4):
+    def select_output_channels(self, start_chan, n_chans, dests=['0.0.0.0'], n_interfaces=None, n_bits=4, nchans_per_packet_limit=None):
         """
         Select the range of channels which the voltage pipeline should output.
 
@@ -1346,6 +1346,9 @@ class AtaSnapFengine(object):
         :param n_interfaces: Number of 10GbE interfaces to use. Should be <= self.n_interfaces
             Default to using all available interfaces.
         :type n_interface: int
+        :param nchans_per_packet_limit: If not None, limits the number of channels per packet to
+            min(nchans_per_packet_limit, actual-maximum).
+        :type nchans_per_packet_limit: int
 
         :raises AssertionError: If the following conditions aren't met:
             `start_chan` should be a multiple of self.n_chans_per_block (4)
@@ -1407,6 +1410,8 @@ class AtaSnapFengine(object):
         # size is 8 kByte + header
         assert n_bits in [4,8], "Only 4- or 8-bit output modes are supported!"
         max_chans_per_packet = 8*8192 // (2*n_bits) // self.n_times_per_packet // 2
+        if nchans_per_packet_limit is not None:
+            max_chans_per_packet = min(max_chans_per_packet, nchans_per_packet_limit)
 
         if n_bits == 8:
             raise NotImplementedError("8-bit mode not yet implemented")
@@ -1422,16 +1427,16 @@ class AtaSnapFengine(object):
         # For now, we only consider case with time the faster axis.
         times_per_word = 64 // (2*2*n_bits)
         # This should always be True for reasonable firmware
-        assert self.packetizer_granularity % times_per_word == 0
+        assert self.packetizer_granularity % times_per_word == 0, 'self.packetizer_granularity % times_per_word ({} % {}) != 0'.format(self.packetizer_granularity, times_per_word)
         packetizer_chan_granularity = self.packetizer_granularity // times_per_word
 
         # We reorder n_chans_per_block as parallel words, so must deal with
         # start / stop points with that granularity
-        assert start_chan % self.n_chans_per_block == 0
+        assert start_chan % self.n_chans_per_block == 0, 'start_chan % self.n_chans_per_block ({} % {}) != 0'.format(start_chan, self.n_chans_per_block)
         n_dests = len(dests)
         # Also Demand that the number of channels can be equally divided
         # among the destination addresses
-        assert n_chans % (n_dests * self.n_chans_per_block) == 0
+        assert n_chans % (n_dests * self.n_chans_per_block) == 0, 'n_chans % (n_dests * self.n_chans_per_block) ({} % {}) != 0'.format(n_chans, (n_dests * self.n_chans_per_block))
         # Number of channels per destination is now gauranteed to be an integer
         # multiple of n_chans_per_block
         n_chans_per_destination = n_chans // n_dests
@@ -1439,15 +1444,15 @@ class AtaSnapFengine(object):
         # packets
         n_packets_per_destination = int(np.ceil(n_chans_per_destination / max_chans_per_packet))
         # Channels should be able to be divided up into packets equally
-        assert n_chans_per_destination % n_packets_per_destination == 0
+        assert n_chans_per_destination % n_packets_per_destination == 0, 'n_chans_per_destination % n_packets_per_destination ({} % {}) != 0'.format(n_chans_per_destination, n_packets_per_destination)
         n_chans_per_packet = n_chans_per_destination  // n_packets_per_destination
         # Number of channels per packet should be a multiple of the reorder granularity
-        assert n_chans_per_packet % self.n_chans_per_block == 0
+        assert n_chans_per_packet % self.n_chans_per_block == 0, 'n_chans_per_packet % self.n_chans_per_block ({} % {}) != 0'.format(n_chans_per_packet, self.n_chans_per_block)
         # Number of channels per packet should be a multiple of packetizer granularity
-        assert n_chans_per_packet % packetizer_chan_granularity == 0
+        assert n_chans_per_packet % packetizer_chan_granularity == 0, 'n_chans_per_packet % packetizer_chan_granularity ({} % {}) != 0'.format(n_chans_per_packet, packetizer_chan_granularity)
         n_slots_per_packet = n_chans_per_packet // packetizer_chan_granularity
         # Can't send more than all the channels!
-        assert start_chan + n_chans <= self.n_chans_f
+        assert start_chan + n_chans <= self.n_chans_f, 'start_chan + n_chans > self.n_chans_f ({} > {})'.format(start_chan + n_chans, self.n_chans_f)
 
         self.logger.info('Start channel: %d' % start_chan)
         self.logger.info('Number of channels to send: %d' % n_chans)
