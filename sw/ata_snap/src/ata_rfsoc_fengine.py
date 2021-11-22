@@ -292,6 +292,14 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             raise NotImplementedError
         delay_samples = np.array(delays) * 1e-9 / (1. / clock_rate_hz)
         assert np.all(delay_samples >= 0)
+        delay_samples_int = np.zeros(2, dtype=int)
+        delay_samples_frac = np.zeros(2, dtype=float)
+        for pol in range(2):
+            if delay_rates[pol] >= 0:
+                delay_samples_int[pol] = int(np.floor(delay_samples[pol]))
+            else:
+                delay_samples_int[pol] = int(np.ceil(delay_samples[pol]))
+            delay_samples_frac[pol] = delay_samples[pol] - delay_samples_int[pol]
         delay_samples_int = np.round(delay_samples).astype(int)
         delay_samples_frac = delay_samples - delay_samples_int
         # Massage rates into samples-per-spectra (lots of redundant use of clock rate...)
@@ -320,7 +328,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # Now load phase rotators
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_ctrl'), 0) # Disable load during configuration
         for i in range(2):
-            delay_lsb = int(delay_samples_frac[i] * 2**32)
+            delay_frac = int(delay_samples_frac[i] * 2**31)
             delay_rate = int(delay_rates_samples_per_spec[i] * 2**31 * RATE_SCALE_FACTOR * FINE_DELAY_LOAD_PERIOD)
             phase = int(phases[i] * 2**31)
             if phase >= 2**31:
@@ -328,7 +336,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             phase_rate = int(phase_rates_per_spec[i] * 2**31 * RATE_SCALE_FACTOR * FINE_DELAY_LOAD_PERIOD)
             if phase_rate >= 2**31:
                 phase_rate = 2**31 - 1
-            self.fpga.write_int(self._pipeline_get_regname('phase_rotate_delay_lsb%d' % i), delay_lsb)
+            self.fpga.write_int(self._pipeline_get_regname('phase_rotate_delay_frac%d' % i), delay_frac)
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_delay_rate%d' % i), delay_rate)
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_phase%d' % i), phase)
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_phase_rate%d' % i), phase_rate)
