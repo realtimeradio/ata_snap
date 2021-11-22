@@ -239,6 +239,37 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             xy = grab(v[0])
             return xy
 
+    def set_phase_calibration(self, pol, phases):
+        """
+        Set calibration phases, which are applied as part of the phase-rotation logic.
+
+        :param pol: Polarization to target. Either `0`, or `1`.
+        :type pol: int
+
+        :param phases: List, or array, of phases, in radians. Length `self.n_chans_f`.
+            Element `N` of the array is the phase which should be applied to frequency channel `N`.
+        :type phases: List / Array of float
+        """
+        COEFF_BP = 15
+        COEFF_BYTES = 2
+        assert pol in [0, 1]
+        phases = np.array(phases, dtype=float)
+        assert phases.shape[0] == self.n_chans_f, "Phase array should be self.n_chans_f in length"
+        # Firmware takes coefficients normalized to pi
+        phases = phases / np.pi
+        # Firmware takes phases in range +/- 1
+        phases = ((phases + 1) % 2) - 1
+        phases = phases * 2**COEFF_BP
+        phases = phases.astype(int)
+        bytestr = b''
+        for i in range(self.n_chans_f):
+            bytestr += struct.pack('>H', phases[i])
+        for i in range(len(bytestr) // 4):
+            self.fpga.write('phase_rotate_fd%d_fd_fs_mux_cal' % pol, bytestr[4*i:4*(i+1)], offset=4*i)
+        assert self.fpga.read('phase_rotate_fd%d_fd_fs_mux_cal' % pol, len(bytestr)) == bytestr, "Readback failed!"
+
+
+
     def set_delay_tracking(self, delays, delay_rates, phases, phase_rates, load_time=None, load_sample=None, clock_rate_hz=2048000000):
         """
         Set this F-engine to track a given delay curve.
