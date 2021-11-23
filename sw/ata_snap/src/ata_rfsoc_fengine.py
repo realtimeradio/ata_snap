@@ -261,12 +261,15 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         phases = ((phases + 1) % 2) - 1
         phases = phases * 2**COEFF_BP
         phases = phases.astype(int)
+        phases[phases > (2**COEFF_BP - 1)] = 2**COEFF_BP - 1
+        phases[phases < (-(2**COEFF_BP))] = -(2**COEFF_BP)
         bytestr = b''
+        regname = self._pipeline_get_regname('phase_rotate_fd%d_fd_fs_mux_cal' % pol)
         for i in range(self.n_chans_f):
-            bytestr += struct.pack('>H', phases[i])
+            bytestr += struct.pack('>h', phases[i])
         for i in range(len(bytestr) // 4):
-            self.fpga.write('phase_rotate_fd%d_fd_fs_mux_cal' % pol, bytestr[4*i:4*(i+1)], offset=4*i)
-        assert self.fpga.read('phase_rotate_fd%d_fd_fs_mux_cal' % pol, len(bytestr)) == bytestr, "Readback failed!"
+            self.fpga.write(regname, bytestr[4*i:4*(i+1)], offset=4*i)
+        assert self.fpga.read(regname, len(bytestr)) == bytestr, "Readback failed!"
 
 
 
