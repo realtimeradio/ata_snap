@@ -273,7 +273,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
 
 
 
-    def set_delay_tracking(self, delays, delay_rates, phases, phase_rates, load_time=None, load_sample=None, clock_rate_hz=2048000000):
+    def set_delay_tracking(self, delays, delay_rates, phases, phase_rates, load_time=None, load_sample=None, clock_rate_hz=2048000000, invert_band=False):
         """
         Set this F-engine to track a given delay curve.
 
@@ -312,6 +312,10 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         :param clock_rate_hz: ADC clock rate in Hz. If None, the clock rate will be computed from
             the observed PPS interval, which could fail if the PPS is unstable or not present.
         :type clock_rate_hz: int
+
+        :param invert_band: If True, invert the gradient of the phase-vs-frequency channel. I.e.,
+            apply a fractional delay which is the negative of the physical delay.
+        :type invert_band: bool
 
         
         :return: Spectrum index at which new delays will be loaded. This should either be equal to
@@ -364,6 +368,9 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         for i in range(2):
             delay_frac = int(delay_samples_frac[i] * 2**31)
             delay_rate = int(delay_rates_samples_per_spec[i] * 2**31 * RATE_SCALE_FACTOR * FINE_DELAY_LOAD_PERIOD)
+            if invert_band:
+                delay_frac = -delay_frac
+                delay_rate = -delay_rate
             phase = int(phases[i] * 2**31)
             if phase >= 2**31:
                 phase = 2**31 - 1
