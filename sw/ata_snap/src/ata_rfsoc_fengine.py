@@ -342,7 +342,6 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             else:
                 delay_samples_int[pol] = int(np.floor(delay_samples[pol]))
             delay_samples_frac[pol] = delay_samples[pol] - delay_samples_int[pol]
-        delay_samples_int = np.round(delay_samples).astype(int)
         delay_samples_frac = delay_samples - delay_samples_int
         # Massage rates into samples-per-spectra (lots of redundant use of clock rate...)
         delay_rates_samples_per_sec = np.array(delay_rates) * 1e-9 /  (1. / clock_rate_hz)
