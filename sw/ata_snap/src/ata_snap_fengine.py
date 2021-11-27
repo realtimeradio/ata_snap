@@ -499,7 +499,7 @@ class AtaSnapFengine(object):
 
         """
         for delay in delays:
-            assert delay <= MAX_SAMPLE_DELAY, "Delay must be between 0 and %d" % (MAX_SAMPLE_DATA - 1)
+            assert delay <= MAX_SAMPLE_DELAY, "Delay must be between 0 and %d" % (MAX_SAMPLE_DELAY - 1)
         self.fpga.write_int(self._pipeline_get_regname('delay_ctrl'), 0) # disable loads while we configure registers
         if load_time != -1:
             # compute load times
