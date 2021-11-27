@@ -333,10 +333,14 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         delay_samples_int = np.zeros(2, dtype=int)
         delay_samples_frac = np.zeros(2, dtype=float)
         for pol in range(2):
+            # If delay rate is positive, want to make fractional delay as small as possible,
+            # so round delay up
             if delay_rates[pol] >= 0:
-                delay_samples_int[pol] = int(np.floor(delay_samples[pol]))
-            else:
                 delay_samples_int[pol] = int(np.ceil(delay_samples[pol]))
+            # If delay rate is negative, want to make fractional delay as large as possible,
+            # so round integer delay down
+            else:
+                delay_samples_int[pol] = int(np.floor(delay_samples[pol]))
             delay_samples_frac[pol] = delay_samples[pol] - delay_samples_int[pol]
         delay_samples_int = np.round(delay_samples).astype(int)
         delay_samples_frac = delay_samples - delay_samples_int
