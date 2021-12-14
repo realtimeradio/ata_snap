@@ -271,7 +271,24 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             self.fpga.write(regname, bytestr[4*i:4*(i+1)], offset=4*i)
         assert self.fpga.read(regname, len(bytestr)) == bytestr, "Readback failed!"
 
+    def get_phase_calibration(self, pol):
+        """
+        Get the currently loaded phase calibration set for a given polarization.
 
+        :param pol: Polarization to target. Either `0`, or `1`.
+        :type pol: int
+
+        :return: numpy array of currently loaded phases per frequency channel, in units of radians
+            Element `N` of the array is the phase which is being applied to frequency channel `N`.
+        :rtype: numpy.array
+        """
+        COEFF_BP = 15
+        COEFF_BYTES = 2
+        assert pol in [0, 1]
+        regname = self._pipeline_get_regname('phase_rotate_fd%d_fd_fs_mux_cal' % pol)
+        phases_raw = self.fpga.read(regname, COEFF_BYTES*self.n_chans_f)
+        phases = np.pi * np.array(struct.unpack('>%dh' % self.n_chans_f, phases_raw)) / (2**COEFF_BP)
+        return phases
 
     def set_delay_tracking(self, delays, delay_rates, phases, phase_rates, load_time=None, load_sample=None, clock_rate_hz=2048000000, invert_band=False):
         """
