@@ -852,20 +852,23 @@ class AtaSnapFengine(object):
 
         :param pol: Polarization to equalize.
         :type pol: int
-        :param target_rms: Target RMS. This is specified in units of 1 8-bit
-            post-equalization least significant bit.
-            I.e., target_rms=1 will target an RMS of 1 on a scale where
-            8-bit post-EQ values run from -255 to 255.
-            This parameter is always relative to 8-bit values. So, for 4-bit quanitization,
-            target_rms = 2**4 will target an RMS of one 4-bit LSB.
+
+        :param target_rms: The target voltage RMS. This should be specified relative to signed
+            data normalized to the range +/-1. I.e., a target_rms of 1./2**7
+            represents an RMS of one least-significant bit after quantizing to 8-bits.
+            A target_rms of 1./2**3 represents one least-significant bit after quantizing
+            to 4-bits.
         :type target_rms: float
+
         :param cutoff: The scale, relative to the mean coefficient, at which coeffiecients
             are saturated. For example, if the mean coefficient is 1000, and ``cutoff`` is 2,
             coefficients will saturated at a value of 2000. This allows the bandpass
             to still be visible in the equalized data.
         :type cutoff: float
+
         :param medfil_ksize: Size of median filter kernel to use for RFI removal. Should be odd.
         :type medfil_ksize: int
+
         :param conv_ksize: Convolution kernel size to use for bandpass smoothing.
         :type conv_ksize: int
 
