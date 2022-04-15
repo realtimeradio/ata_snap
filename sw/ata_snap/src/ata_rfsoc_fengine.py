@@ -56,9 +56,9 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         try:
             # fpga.listdev() can fail if the board has no image
             self._read_parameters_from_fpga()
+            self._calc_output_ids()
         except:
             pass
-        self._calc_output_ids()
 
         # If the board is programmed, try to get the fpg data
         #if self.is_programmed():
