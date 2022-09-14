@@ -869,6 +869,14 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             self.fpga.write(reg, out_bytes[4*i:4*(i+1)], offset=4*i + 2*offset_words)
         assert self.fpga.read(reg, len(out_bytes), offset=2*offset_words) == out_bytes, "Readback failed"
 
+    def _write_eq_coeffs(self, regname, coeff_str):
+        """
+        Write binary coefficients `coeff_str`, to register name `regname`
+        """
+        # Work around RFSoC >4-byte write issues
+        for i in range(len(coeff_str)//4):
+            self.fpga.write(regname, coeff_str[4*i:4*(i+1)], offset=4*i)
+
     def eth_set_dest_port(self, port, interface=None):
         """
         Set the destination UDP port for output 100GbE packets.

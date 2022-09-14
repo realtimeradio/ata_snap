@@ -954,8 +954,14 @@ class AtaSnapFengine(object):
             coeffs_str = struct.pack('>%dL'%n_coeffs, *coeffs)
         else:
             raise TypeError("Don't know how to convert %d-bit numbers to binary" % COEFF_BITS)
-        self.fpga.write(self._pipeline_get_regname('eq_pol%d_coeffs' % pol), coeffs_str)
+        self._write_eq_coeffs(self._pipeline_get_regname('eq_pol%d_coeffs' % pol), coeffs_str)
         return np.array(coeffs).repeat(self.n_coeff_shared), COEFF_BP
+
+    def _write_eq_coeffs(self, regname, coeff_str):
+        """
+        Write binary coefficients `coeff_str`, to register name `regname`
+        """
+        self.fpga.write(regname, coeffs_str)
 
     def eq_read_coeffs(self, pol, return_float=False):
         """
