@@ -215,7 +215,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             xy_2_i = d2i[1::2]
             xy_3_r = d3i[0::2]
             xy_3_i = d3i[1::2]
-            xy = np.zeros(self.n_chans_f, dtype=np.complex)
+            xy = np.zeros(self.n_chans_f, dtype=complex)
             if not self.is_8_bit:
                 #Only 8 bit firmware has FFT reordering on the FPGA
                 # Do final FFT serial reorder in software
