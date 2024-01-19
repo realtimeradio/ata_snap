@@ -63,9 +63,6 @@ def run(host, fpgfile, configfile,
         # If we're not programming we need to load the FPG information
         fengs[0].fpga.get_system_information(fpgfile)
 
-    logger.info("Enabling ADC")
-    fengs[0].fpga.write_int('adc_rstn', 1)
-
     logger.info("Estimating FPGA clock")
     clk_rate_mhz = fengs[0].fpga.estimate_fpga_clock()
     logger.info("Clock rate: %.1f MHz" % clk_rate_mhz)
