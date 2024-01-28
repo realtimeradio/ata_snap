@@ -28,7 +28,6 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
     n_interfaces = 1     #: Number of available 10GbE interfaces
     n_ants_per_board = 8 #: Number of antennas on a board
     n_chans_per_block_4bit = 32 #: Number of channels reordered in a single word (with 4 bit data)
-    packetizer_granularity = 2**5 # Number of words per packetizer step
     tge_n_bytes_per_word = 64 # 64 1-byte time samples per 512-bit 100GbE output.
     def __init__(self, host, feng_id=0, pipeline_id=0):
         """
@@ -74,13 +73,22 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             self.is_8_bit = bool(self.fpga.read_uint('is_8_bit'))
         else:
             self.is_8_bit = False
+
+        assert self.is_8bit # Probably broken if not
         
         if self.is_8_bit:
+            n_times_bits = int(4 + (11 - np.log2(self.n_chans_f))) # 16 times when 2048 channel, else more
+            self.n_times_per_packet = 2**n_times_bits
+            packetizer_granularity_bits = int(np.max(n_times_bits - 4, 4))
+            self.packetizer_granularity = 2**packetizer_granularity_bits
             self.n_chans_per_block = self.n_chans_per_block_4bit // 2
             self.n_ants_per_output = self.n_ants_per_board // 2 #: Number of antennas per 100G link
         else:
             self.n_chans_per_block = self.n_chans_per_block_4bit
             self.n_ants_per_output = self.n_ants_per_board #: Number of antennas per 100G link
+        self.logger.info('Number of channels:', self.n_chans_f)
+        self.logger.info('Number of times per packet:', self.n_times_per_packet)
+        self.logger.info('Packetizer granularity:', self.packetizer_granularity)
 
     def _calc_output_ids(self):
         self.output_id = self.pipeline_id // self.n_ants_per_output
