@@ -69,6 +69,13 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
     def _read_parameters_from_fpga(self):
         if 'nchans' in self.fpga.listdev():
             self.n_chans_f = self.fpga.read_uint('nchans')
+            if self.n_chans_f == 1:
+                self.n_chans_phase_tracking = 512
+                self.adc_demux_factor = 1
+                self.n_interfaces = 1
+            else:
+                self.n_chans_phase_tracking = self.n_chans_f
+
         if 'is_8_bit' in self.fpga.listdev():
             self.is_8_bit = bool(self.fpga.read_uint('is_8_bit'))
         else:
@@ -273,7 +280,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         phases[phases < (-(2**COEFF_BP))] = -(2**COEFF_BP)
         bytestr = b''
         regname = self._pipeline_get_regname('phase_rotate_fd%d_fd_fs_mux_cal' % pol)
-        for i in range(self.n_chans_f):
+        for i in range(self.n_chans_phase_tracking):
             bytestr += struct.pack('>h', phases[i])
         for i in range(len(bytestr) // 4):
             self.fpga.write(regname, bytestr[4*i:4*(i+1)], offset=4*i)
@@ -294,8 +301,8 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         COEFF_BYTES = 2
         assert pol in [0, 1]
         regname = self._pipeline_get_regname('phase_rotate_fd%d_fd_fs_mux_cal' % pol)
-        phases_raw = self.fpga.read(regname, COEFF_BYTES*self.n_chans_f)
-        phases = np.pi * np.array(struct.unpack('>%dh' % self.n_chans_f, phases_raw)) / (2**COEFF_BP)
+        phases_raw = self.fpga.read(regname, COEFF_BYTES*self.n_chans_phase_tracking)
+        phases = np.pi * np.array(struct.unpack('>%dh' % self.n_chans_phase_tracking, phases_raw)) / (2**COEFF_BP)
         return phases
 
     def set_delay_tracking(self, delays, delay_rates, phases, phase_rates, load_time=None, load_sample=None, clock_rate_hz=2048000000, invert_band=False):
@@ -370,13 +377,13 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         delay_samples_frac = delay_samples - delay_samples_int
         # Massage rates into samples-per-spectra (lots of redundant use of clock rate...)
         delay_rates_samples_per_sec = np.array(delay_rates) * 1e-9 /  (1. / clock_rate_hz)
-        delay_rates_samples_per_spec = delay_rates_samples_per_sec * (2*self.n_chans_f) / clock_rate_hz
+        delay_rates_samples_per_spec = delay_rates_samples_per_sec * (2*self.n_chans_phase_tracking) / clock_rate_hz
         # Convert phases to range +/- pi and normalize
         phases = np.array(phases) / np.pi # normalize to fractions of pi
         phases = ((phases + 1) % 2) - 1   # place in range +/- 1
         # Convert phase rates to fractions of pi per spectra
         self.logger.info("Phase rates [radians per sec]: %s" % phase_rates)
-        phase_rates_per_spec = np.array(phase_rates) * (2*self.n_chans_f) / clock_rate_hz
+        phase_rates_per_spec = np.array(phase_rates) * (2*self.n_chans_phase_tracking) / clock_rate_hz
         self.logger.info("Phase rates [radians per spectrum]: %s" % phase_rates_per_spec)
         phase_rates_per_spec = phase_rates_per_spec / np.pi # normalize to fractions of pi
         self.logger.info("Phase rates [pis per spectrum]: %s" % phase_rates_per_spec)
@@ -410,7 +417,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_phase%d' % i), phase)
             self.fpga.write_int(self._pipeline_get_regname('phase_rotate_phase_rate%d' % i), phase_rate)
         # Load arm logic
-        load_fpga_clocks = (load_time_spectra - FINE_DELAY_LOAD_PERIOD) * 2*self.n_chans_f // self.adc_demux_factor
+        load_fpga_clocks = (load_time_spectra - FINE_DELAY_LOAD_PERIOD) * 2*self.n_chans_phase_tracking // self.adc_demux_factor
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_target_load_time_msb'), load_fpga_clocks >> 32)
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_target_load_time_lsb'), load_fpga_clocks & 0xffffffff)
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_ctrl'), 2) # enable timed load
