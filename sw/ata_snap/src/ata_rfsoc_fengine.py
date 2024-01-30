@@ -56,6 +56,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
             # fpga.listdev() can fail if the board has no image
             self._read_parameters_from_fpga()
         except:
+            raise
             pass
         self._calc_output_ids()
 
@@ -81,21 +82,21 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         else:
             self.is_8_bit = False
 
-        assert self.is_8bit # Probably broken if not
+        assert self.is_8_bit # Probably broken if not
         
         if self.is_8_bit:
             n_times_bits = int(4 + (11 - np.log2(self.n_chans_f))) # 16 times when 2048 channel, else more
             self.n_times_per_packet = 2**n_times_bits
-            packetizer_granularity_bits = int(np.max(n_times_bits - 4, 5))
+            packetizer_granularity_bits = int(np.max([n_times_bits - 4, 5]))
             self.packetizer_granularity = 2**packetizer_granularity_bits
             self.n_chans_per_block = self.n_chans_per_block_4bit // 2
             self.n_ants_per_output = self.n_ants_per_board // 2 #: Number of antennas per 100G link
         else:
             self.n_chans_per_block = self.n_chans_per_block_4bit
             self.n_ants_per_output = self.n_ants_per_board #: Number of antennas per 100G link
-        self.logger.info('Number of channels:', self.n_chans_f)
-        self.logger.info('Number of times per packet:', self.n_times_per_packet)
-        self.logger.info('Packetizer granularity:', self.packetizer_granularity)
+        self.logger.info('Number of channels: %d' % self.n_chans_f)
+        self.logger.info('Number of times per packet: %d' % self.n_times_per_packet)
+        self.logger.info('Packetizer granularity: %d' % self.packetizer_granularity)
 
     def _calc_output_ids(self):
         self.output_id = self.pipeline_id // self.n_ants_per_output
