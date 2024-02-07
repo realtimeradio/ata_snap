@@ -591,11 +591,11 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         # For now, we only consider case with time the faster axis.
         times_per_word = self.tge_n_bytes_per_word // (2*2*n_bits // 8)
         assert self.packetizer_granularity % times_per_word == 0, 'self.packetizer_granularity % times_per_word ({} % {}) != 0'.format(self.packetizer_granularity, times_per_word)
-        chans_per_word = times_per_word // self.n_times_per_packet
+        chans_per_word = times_per_word / self.n_times_per_packet
         self.logger.info("Samples per packetizer word: %d" % times_per_word)
-        self.logger.info("Channels per packetizer word: %d" % chans_per_word)
+        self.logger.info("Channels per packetizer word: %f" % chans_per_word)
         self.logger.info("Packetizer granularity: %d" % self.packetizer_granularity)
-        packetizer_chan_granularity = self.packetizer_granularity // chans_per_word
+        packetizer_chan_granularity = self.packetizer_granularity * chans_per_word # number of channels in `packetizer_granularity` words
 
         # We reorder n_chans_per_block as parallel words, so must deal with
         # start / stop points with that granularity
