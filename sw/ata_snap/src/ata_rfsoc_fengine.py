@@ -87,8 +87,12 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         if self.is_8_bit:
             n_times_bits = int(4 + (11 - np.log2(self.n_chans_f))) # 16 times when 2048 channel, else more
             self.n_times_per_packet = 2**n_times_bits
-            self.n_times_per_block = 16 # Channel reorder deals with 16 times per word
-            self.n_chans_per_block = 1  # Channel reorder deals with 1 channel per word
+            if self.n_chans_f < 2048:
+                self.n_times_per_block = 16 # Channel reorder deals with 16 times per word
+                self.n_chans_per_block = 1  # Channel reorder deals with 1 channel per word
+            else:
+                self.n_times_per_block = 1  # Channel reorder deals with 1 time per word
+                self.n_chans_per_block = 16 # Channel reorder deals with 16 channel per word
             packetizer_granularity_bits = int(np.max([n_times_bits - 4, 5]))
             self.packetizer_granularity = 2**packetizer_granularity_bits
             self.n_ants_per_output = self.n_ants_per_board // 2 #: Number of antennas per 100G link
