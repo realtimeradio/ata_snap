@@ -87,13 +87,13 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         if self.is_8_bit:
             n_times_bits = int(4 + (11 - np.log2(self.n_chans_f))) # 16 times when 2048 channel, else more
             self.n_times_per_packet = 2**n_times_bits
+            self.n_times_per_block = 16 # Channel reorder deals with 16 times per word
+            self.n_chans_per_block = 1  # Channel reorder deals with 1 channel per word
             packetizer_granularity_bits = int(np.max([n_times_bits - 4, 5]))
             self.packetizer_granularity = 2**packetizer_granularity_bits
-            self.n_chans_per_block = self.n_chans_per_block_4bit // 2
             self.n_ants_per_output = self.n_ants_per_board // 2 #: Number of antennas per 100G link
         else:
-            self.n_chans_per_block = self.n_chans_per_block_4bit
-            self.n_ants_per_output = self.n_ants_per_board #: Number of antennas per 100G link
+            raise RuntimeError('4-bit mode not supported')
         self.logger.info('Number of channels: %d' % self.n_chans_f)
         self.logger.info('Number of times per packet: %d' % self.n_times_per_packet)
         self.logger.info('Packetizer granularity: %d' % self.packetizer_granularity)
@@ -595,7 +595,8 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         self.logger.info("Samples per packetizer word: %d" % times_per_word)
         self.logger.info("Channels per packetizer word: %f" % chans_per_word)
         self.logger.info("Packetizer granularity: %d" % self.packetizer_granularity)
-        packetizer_chan_granularity = self.packetizer_granularity * chans_per_word # number of channels in `packetizer_granularity` words
+        assert (self.packetizer_granularity * chans_per_word) % 1 == 0
+        packetizer_chan_granularity = int(self.packetizer_granularity * chans_per_word) # number of channels in `packetizer_granularity` words
 
         # We reorder n_chans_per_block as parallel words, so must deal with
         # start / stop points with that granularity
@@ -850,7 +851,7 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         Reorder the channels such that the channel order[i]
         emerges out of the reorder in position i.
         """
-        out_array = np.zeros([self.n_times_per_packet * self.n_chans_f // self.n_chans_per_block], dtype='>i2')
+        out_array = np.zeros([self.n_times_per_packet // self.n_times_per_block * self.n_chans_f // self.n_chans_per_block], dtype='>i2')
         if not transpose_time:
             raise NotImplementedError("Reorder only implemented with time fastest ordering")
         # Check input
@@ -866,9 +867,9 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         serial_chans = self.n_chans_f // self.n_chans_per_block
         for xn, x in enumerate(order):
             #print("Mapping channel %d to position %d" % (x, xn))
-            for t in range(self.n_times_per_packet):
+            for t in range(self.n_times_per_packet // self.n_times_per_block):
                 input_idx = t*serial_chans + x
-                output_idx = xn*self.n_times_per_packet + t
+                output_idx = xn*self.n_times_per_packet // self.n_times_per_block + t
                 out_array[output_idx] = input_idx
         
         # Turn the map from a channel number into a reorder word index.
