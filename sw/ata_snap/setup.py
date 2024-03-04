@@ -13,6 +13,7 @@ setup(
     install_requires=[
         'casperfpga',
         'numpy',
+        'pyaml',
     ],
     provides=['ata_snap'],
     packages=['ata_snap'],
