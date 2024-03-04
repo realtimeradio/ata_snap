@@ -52,6 +52,7 @@ def run(host, fpgfile, configfile,
     
     if not skipprog:
         logger.info("Programming %s with %s" % (host, fpgfile))
+        cfpga.upload_to_ram_and_program(fpgfile)
         ata_rfsoc_fengine.AtaRfsocFengine(cfpga, feng_id=0, pipeline_id=0).program(fpgfile) # use a dummy object for programming
 
     logger.info("Connected")
