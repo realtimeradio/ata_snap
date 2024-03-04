@@ -18,6 +18,6 @@ setup(
     provides=['ata_snap'],
     packages=['ata_snap'],
     package_dir={'ata_snap': 'src'},
-    scripts=glob.glob('scripts/*'),
+    scripts=glob.glob('scripts/*.py'),
 )
 
