@@ -456,10 +456,13 @@ class AtaSnapFengine(object):
         :return: Sync trigger time, in UNIX format
         :rval: int
         """
+        if not manual_trigger:
+            self.sync_wait_for_pps()
         self.logger.info('Issuing sync arm')
         self.fpga.write_int('sync_arm', 0)
         self.fpga.write_int('sync_arm', 1)
         self.fpga.write_int('sync_arm', 0)
+        time.sleep(0.1)
         sync_time = int(np.ceil(time.time())) + 2
         self.fpga.write_int('sync_sync_time', sync_time)
         if manual_trigger:
@@ -469,6 +472,8 @@ class AtaSnapFengine(object):
             if wait_time > 0:
                 time.sleep(wait_time)
             self.sync_manual_trigger()
+        else:
+            self.sync_wait_for_pps()
         return sync_time
 
     def set_delays(self, delays, load_time=-1, clock_rate_hz=2048000000, sync_time=None, load_resolution=1):
