@@ -427,6 +427,65 @@ class AtaRfsocFengine(ata_snap_fengine.AtaSnapFengine):
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_target_load_time_lsb'), load_fpga_clocks & 0xffffffff)
         self.fpga.write_int(self._pipeline_get_regname('phase_rotate_ctrl'), 2) # enable timed load
         return load_time_spectra
+    
+    def get_firmware_slope(self):
+        """
+        Retrieve the firmware reported slope in samples for all 2 streams.
+
+        :return: tuple of integer readout from both slope registers with scaling:
+            (slope_pol0, slope_pol1), slope_scale
+        """
+        FIRMWARE_SLOPE_BP = 31
+
+        regnames = (self._pipeline_get_regname('phase_rotate_fd0_slope'), self._pipeline_get_regname('phase_rotate_fd1_slope'))
+
+        return (self.fpga.read_int(regnames[0]), self.fpga.read_int(regnames[1])), 2**FIRMWARE_SLOPE_BP
+
+    def get_firmware_phase(self):
+        """
+        Retrieve the firmware reported phase in radians for all 2 streams.
+
+        :return: tuple of integer readout from both phase registers with scaling:
+            (phase_pol0, phase_pol1), phase_scale
+        """
+        FIRMWARE_PHASE_BP = 31
+
+        regnames = (self._pipeline_get_regname('phase_rotate_fd0_phase'), self._pipeline_get_regname('phase_rotate_fd1_phase'))
+        return (self.fpga.read_int(regnames[0]), self.fpga.read_int(regnames[1])), 2**FIRMWARE_PHASE_BP
+
+    def get_phase_rotate_time_to_load(self):
+        """
+        Get number of FPGA clocks until load trigger.
+        The returned value will be negative if the trigger time
+        is in the past.
+        
+        :return: time_to_load (FPGA clocks)
+        :rtype: int
+        """
+        lsb = self.fpga.read_uint(self._pipeline_get_regname('phase_rotate_time_to_load_lsb'))
+        msb = self.fpga.read_uint(self._pipeline_get_regname('phase_rotate_time_to_load_msb'))
+
+        v = (msb << 32) + lsb
+        if v > (2**63 - 1):
+            v -= 2**64
+        return v
+
+    def get_delay_time_to_load(self):
+        """
+        Get number of FPGA clocks until load trigger.
+        The returned value will be negative if the trigger time
+        is in the past.
+        
+        :return: time_to_load (FPGA clocks)
+        :rtype: int
+        """
+        lsb = self.fpga.read_uint(self._pipeline_get_regname('delay_time_to_load_lsb'))
+        msb = self.fpga.read_uint(self._pipeline_get_regname('delay_time_to_load_msb'))
+
+        v = (msb << 32) + lsb
+        if v > (2**63 - 1):
+            v -= 2**64
+        return v
 
     def adc_get_samples(self):
         """
